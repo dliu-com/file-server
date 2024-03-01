@@ -17,7 +17,7 @@ export class CdkStack extends Stack {
 
     const get = new ImportValues(this, props);
 
-    const bucket = new s3.Bucket(this, 'SyncBucket', { bucketName: 'file-server-sync-bucket' });
+    const bucket = new s3.Bucket(this, 'SyncBucket', { bucketName: 'file-server-sync-bucket-test' });
 
     const s3Role = new iam.Role(this, "S3Role", {
       assumedBy: new iam.ServicePrincipal('datasync.amazonaws.com'),

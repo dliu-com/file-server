@@ -49,7 +49,7 @@ export class ImportValues extends Construct implements CdkStackProps {
         this.instanceCount = props.instanceCount;
 
         this.hostedZone = route53.HostedZone.fromHostedZoneAttributes(scope, 'HostedZone', {
-            hostedZoneId: Fn.importValue('DLIUCOMHostedZoneID'),
+            hostedZoneId: Fn.importValue('MainHostedZoneId'),
             zoneName: props.domain,
         });
 
