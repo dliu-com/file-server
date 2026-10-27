@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Files · dliu.com</title>
+  <meta name="description" content="Files shared by Dewei Liu">
+  <link rel="icon" href="/_app/logo.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/_app/style.css">
+  <script type="module" src="/_app/app.js"></script>
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="/" aria-label="Files home"><img class="logo" src="/_app/logo.svg" alt=""><span class="name">Files</span></a>
+    <nav></nav>
+  </header>
+  <main>
+    <nav class="crumbs" id="crumbs" aria-label="Folder"></nav>
+    <div class="toolbar">
+      <input type="search" id="search" placeholder="Search this folder" aria-label="Search this folder" autocomplete="off">
+      <div class="owner-actions" id="owner-actions" hidden>
+        <button type="button" class="primary" id="upload-files">＋ Upload files</button>
+        <button type="button" id="upload-folder">Upload folder</button>
+        <button type="button" id="new-folder">New folder</button>
+        <input type="file" id="file-input" multiple hidden>
+        <input type="file" id="folder-input" webkitdirectory multiple hidden>
+      </div>
+    </div>
+
+    <section class="panel uploads" id="uploads" hidden aria-live="polite">
+      <div class="row spread"><strong id="upload-title">Uploading</strong><button type="button" id="upload-cancel">Cancel</button></div>
+      <div class="progress"><div id="bar"></div></div>
+      <div class="muted small" id="upload-text"></div>
+      <ul class="upload-log" id="upload-log"></ul>
+    </section>
+
+    <p class="muted" id="status">Loading…</p>
+    <table class="files" id="files" hidden>
+      <thead><tr><th>Name</th><th class="size">Size</th><th class="date">Modified</th><th class="actions"><span class="visually-hidden">Actions</span></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="drop-hint" id="drop-hint" hidden>Drop files or folders to upload them here</div>
+  </main>
+  <footer class="bottom"><a href="https://dliu.com">dliu.com</a></footer>
+</body>
+</html>

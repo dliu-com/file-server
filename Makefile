@@ -1,15 +1,31 @@
+AWS_REGION ?= eu-west-1
+STACK_NAME ?= FileServer
 
-synth-httpd:
-	cd httpd && cd cdk && npm run synth
-deploy-httpd:
-	cd httpd && cd cdk && npm run deploy
-deploy-sync:
-	cd sync-files && cd cdk && npm run deploy	
+.PHONY: install test synth diff deploy set-secrets outputs smoke
+
 install:
-	cd httpd && cd cdk && npm install
-	cd httpd && cd cdk-corrected && npm install
-	cd sync-files && cd cdk && npm install
-deploy-storage:
-	aws cloudformation create-stack --region eu-west-2 --stack-name FileServerStorage --template-body file://storage/cloudformation.yml --tags Key=service,Value=file-server;
-update-storage:
-	aws cloudformation update-stack --region eu-west-2 --stack-name FileServerStorage --template-body file://storage/cloudformation.yml --tags Key=service,Value=file-server;
+	npm ci
+
+test:
+	npm test -- --runInBand
+
+synth:
+	AWS_REGION=$(AWS_REGION) npm run synth -- --quiet
+
+diff:
+	AWS_REGION=$(AWS_REGION) npm run diff
+
+deploy: test
+	AWS_REGION=$(AWS_REGION) npm run deploy
+
+# Prompts for the Microsoft Entra app's tenant ID, client ID and client secret and stores them in SSM.
+set-secrets:
+	AWS_REGION=$(AWS_REGION) scripts/set-secrets.sh
+
+outputs:
+	aws cloudformation describe-stacks --region $(AWS_REGION) --stack-name $(STACK_NAME) \
+		--query 'Stacks[0].Outputs[].[OutputKey,OutputValue]' --output table
+
+# End-to-end test against the deployed site. Uploads, moves, checks and deletes a throwaway file.
+smoke:
+	AWS_REGION=$(AWS_REGION) node scripts/smoke-test.js
