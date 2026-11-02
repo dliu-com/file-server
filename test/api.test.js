@@ -76,7 +76,7 @@ describe('API', () => {
     expect(plan).toMatchObject({ path: 'me/videos/Graduation Day.mp4', partSize: 16 * MiB, partCount: 3, replacing: false });
     const create = s3.calls.find((c) => c.name === 'CreateMultipartUploadCommand').input;
     expect(create).toMatchObject({
-      Key: 'me/videos/Graduation Day.mp4', ContentType: 'video/mp4', StorageClass: 'INTELLIGENT_TIERING', CacheControl: 'public, max-age=300',
+      Key: 'me/videos/Graduation Day.mp4', ContentType: 'video/mp4', StorageClass: 'INTELLIGENT_TIERING', CacheControl: 'public, max-age=300, s-maxage=86400, stale-while-revalidate=86400',
     });
 
     const parts = await call('POST', '/api/uploads/parts', { body: { token: plan.token, parts: [1, 2, 3] } });
@@ -116,6 +116,9 @@ describe('API', () => {
     [{ path: '_app/app.js', size: 10 }, 'reserved'],
     [{ path: 'api/x', size: 10 }, 'reserved'],
     [{ path: 'index.html', size: 10 }, 'reserved'],
+    [{ path: 'docs', size: 10 }, 'reserved'],
+    [{ path: 'docs/api', size: 10 }, 'reserved'],
+    [{ path: '/docs/api.md', size: 10 }, 'reserved'],
     [{ path: `${'a'.repeat(256)}.txt`, size: 10 }, 'longer than 255'],
     [{ path: 'a.txt', size: 0 }, 'Empty files'],
     [{ path: 'a.txt', size: 11 * 1024 ** 3 }, 'size must be'],
@@ -125,6 +128,25 @@ describe('API', () => {
     const result = await call('POST', '/api/uploads', { body });
     expect(result.statusCode).toBe(400);
     expect(result.json.error).toContain(message);
+  });
+
+  test('only the exact docs page paths are reserved, not the docs/ folder', () => {
+    expect(cleanPath('docs/notes.txt')).toBe('docs/notes.txt');
+    expect(cleanPath('docs/api/notes.txt')).toBe('docs/api/notes.txt');
+    expect(cleanPath('docs/api.txt')).toBe('docs/api.txt');
+    expect(() => cleanPath('docs/api/', 'to')).toThrow('reserved');
+  });
+
+  test('the signed-in owner can read the listing', async () => {
+    const { call, s3 } = setup();
+    expect((await call('GET', '/api/files')).json).toEqual({ files: [], updatedAt: null });
+    expect((await call('GET', '/api/files', { signedIn: false })).statusCode).toBe(401);
+    await upload(call, s3, 'me/resume.pdf');
+    expect((await call('GET', '/api/files')).json).toEqual({
+      files: [{ path: 'me/resume.pdf', size: 1234, type: 'application/pdf', modified: new Date(NOW).toISOString() }],
+      updatedAt: new Date(NOW).toISOString(),
+    });
+    expect((await call('POST', '/api/files', { body: {} })).statusCode).toBe(405);
   });
 
   test('paths are NFC-normalised and may hold spaces, Unicode and URL punctuation', () => {
@@ -286,10 +308,15 @@ describe('API', () => {
     expect(auth.safeReturnPath('/me/%E7%AE%80%E5%8E%86/')).toBe('/me/%E7%AE%80%E5%8E%86/');
   });
 
-  test('sign-in errors link the site stylesheet', async () => {
+  test('sign-in errors use the shared dliu.com look', async () => {
     const { call } = setup();
     const result = await call('GET', '/auth/callback', { signedIn: false, query: {} });
     expect(result.headers['content-type']).toContain('text/html');
-    expect(result.body).toContain('/_app/style.css');
+    const dlCss = '<link rel="stylesheet" href="https://files.dliu.com/dliu.com/ui/v1/dl.css">';
+    expect(result.body).toContain(dlCss);
+    expect(result.body.indexOf(dlCss)).toBeLessThan(result.body.indexOf('/_app/style.css'));
+    expect(result.body).toContain('<link rel="icon" type="image/svg+xml" href="/_app/logo.svg">');
+    expect(result.body).toContain('<a class="dl-brand" href="/"><img class="dl-logo" src="/_app/logo.svg"');
+    expect(result.body).toContain('<footer class="dl-footer"><a class="dl-footer-logo" href="https://dliu.com" aria-label="dliu.com"><img src="https://files.dliu.com/dliu.com/favicon.png"');
   });
 });

@@ -1,5 +1,6 @@
 {
   "subdomain": "files",
   "frameAncestors": ["https://dliu.com", "https://*.dliu.com"],
-  "maxUploadGiB": 50
+  "maxUploadGiB": 50,
+  "microsoftApi": true
 }

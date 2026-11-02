@@ -1,8 +1,11 @@
 'use strict';
 
 const auth = require('./auth');
+const apiAccess = require('./api-access');
 const { loadConfig, NotConfigured } = require('./config');
 const { BadRequest, Conflict, NotFound, createFiles } = require('./files');
+const store = require('./store');
+const ROUTES = require('./routes.json');
 
 const SECURITY_HEADERS = { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' };
 const MAX_BODY = 64 * 1024;
@@ -27,8 +30,13 @@ function errorPage(statusCode, message, cookies) {
     statusCode,
     headers: { ...SECURITY_HEADERS, 'content-type': 'text/html; charset=utf-8' },
     ...(cookies ? { cookies } : {}),
-    body: `<!doctype html><meta charset="utf-8"><title>Files</title><link rel="stylesheet" href="/_app/style.css">
-<body><main class="narrow"><h1>Sign-in problem</h1><p>${escapeHtml(message)}</p><p><a href="/auth/login">Try again</a> · <a href="/">Home</a></p></main></body>`,
+    body: `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign-in problem · Files · dliu.com</title><link rel="icon" type="image/svg+xml" href="/_app/logo.svg">
+<link rel="stylesheet" href="https://files.dliu.com/dliu.com/ui/v1/dl.css"><link rel="stylesheet" href="/_app/style.css"></head>
+<body class="dl-page"><header class="dl-header">
+<a class="dl-brand" href="/"><img class="dl-logo" src="/_app/logo.svg" alt="" width="32" height="32">Files</a><nav class="dl-nav" aria-label="Site"><a class="dl-button" href="/docs/api">Docs</a><a class="dl-button dl-signin" href="/auth/login">Sign in</a></nav></header>
+<main class="dl-main dl-narrow"><h1>Sign-in problem</h1><p>${escapeHtml(message)}</p><p><a class="dl-button dl-button-primary" href="/auth/login">Try again</a></p></main>
+<footer class="dl-footer"><a class="dl-footer-logo" href="https://dliu.com" aria-label="dliu.com"><img src="https://files.dliu.com/dliu.com/favicon.png" alt="" width="24" height="24"></a> <a href="https://dliu.com">dliu.com</a> · <a href="/">Files</a> · <a href="/docs/api">Docs</a></footer></body></html>`,
   };
 }
 
@@ -69,29 +77,56 @@ async function invalidateWithCloudFront(paths) {
   }));
 }
 
-const ROUTES = {
-  'POST /api/uploads': 'createUpload',
-  'POST /api/uploads/parts': 'signParts',
-  'POST /api/uploads/complete': 'completeUpload',
-  'POST /api/uploads/abort': 'abortUpload',
-  'POST /api/files/move': 'move',
-  'POST /api/files/delete': 'remove',
-};
+// Upload tokens are signed with a key derived from the website's Entra secret. Managed API requests load that
+// configuration only for these actions, and never use it to authenticate the caller.
+const UPLOAD_ACTIONS = new Set(['createUpload', 'signParts', 'completeUpload', 'abortUpload']);
 
 function createHandler(deps = {}) {
   const getConfig = deps.loadConfig || loadConfig;
   const fetchImpl = deps.fetchImpl || ((...args) => fetch(...args));
   const clock = deps.now || Date.now;
 
+  async function respond(route, path, event, session, config) {
+    if (!route) return json(404, { error: 'Not found' });
+    if (path === '/api/me') return json(200, { user: session.user, name: session.name });
+    if (path === '/api/files') {
+      const listing = await store.readListing(deps.s3 || s3Client(), process.env.FILE_BUCKET);
+      return json(200, { files: listing.files, updatedAt: listing.updatedAt || null });
+    }
+    const files = createFiles({
+      s3: deps.s3 || s3Client(),
+      bucket: process.env.FILE_BUCKET,
+      region: process.env.AWS_REGION,
+      maxBytes: Number(process.env.MAX_UPLOAD_BYTES) || 50 * 1024 ** 3,
+      tokenKey: config ? auth.uploadKey(config) : null,
+      now: clock,
+      invalidate: deps.invalidate || invalidateWithCloudFront,
+    });
+    return json(200, await files[route.action](parseBody(event)));
+  }
+
   return async function handler(event) {
     const method = (event.requestContext && event.requestContext.http && event.requestContext.http.method) || 'GET';
     const path = event.rawPath || '/';
     const params = event.queryStringParameters || {};
     const siteUrl = process.env.SITE_URL;
-    const route = ROUTES[`${method} ${path}`];
+    const route = Object.hasOwn(ROUTES, `${method} ${path}`) ? ROUTES[`${method} ${path}`] : undefined;
+    // The Microsoft API (API Gateway with a JWT authorizer) shares this function with the website's function URL,
+    // whose events have routeKey "$default".
+    const context = event.requestContext;
+    const managedApi = Boolean(context && ((context.authorizer && context.authorizer.jwt) ||
+      (context.apiId && context.routeKey !== '$default')));
+    if (managedApi && !route) return json(404, { error: 'Not found' });
     if (!route && method !== 'GET') return json(405, { error: 'Method not allowed' });
 
     try {
+      if (managedApi) {
+        const session = apiAccess.authorize(event, route.scope);
+        if (session.status) return json(session.status, { error: session.error });
+        const config = UPLOAD_ACTIONS.has(route.action) ? await getConfig() : null;
+        return await respond(route, path, event, session, config);
+      }
+
       const config = await getConfig();
 
       if (path === '/auth/login') {
@@ -109,24 +144,12 @@ function createHandler(deps = {}) {
       // Clearing the hint cookie makes the pages hide the owner controls again.
       if (!session) return json(401, { error: 'Not signed in' }, auth.logoutCookies());
 
-      const files = createFiles({
-        s3: deps.s3 || s3Client(),
-        bucket: process.env.FILE_BUCKET,
-        region: process.env.AWS_REGION,
-        maxBytes: Number(process.env.MAX_UPLOAD_BYTES) || 50 * 1024 ** 3,
-        tokenKey: auth.uploadKey(config),
-        now: clock,
-        invalidate: deps.invalidate || invalidateWithCloudFront,
-      });
-
-      if (route) {
+      if (route && route.action) {
         // Cross-site requests carry no session (SameSite=Lax); the Origin check is a second guard.
         const origin = (event.headers && event.headers.origin) || '';
         if (origin !== siteUrl) return json(403, { error: 'Forbidden' });
-        return json(200, await files[route](parseBody(event)));
       }
-      if (path === '/api/me') return json(200, { user: session.user, name: session.name });
-      return json(404, { error: 'Not found' });
+      return await respond(route, path, event, session, config);
     } catch (error) {
       if (error instanceof BadRequest) return json(400, { error: error.message });
       if (error instanceof NotFound) return json(404, { error: error.message });

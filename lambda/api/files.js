@@ -41,6 +41,7 @@ function cleanPath(value, name = 'path') {
   }
   if (store.RESERVED.has(segments[0])) throw new BadRequest(`"${segments[0]}" is reserved for the site; choose another top-level name`);
   if (path === 'index.html') throw new BadRequest('"index.html" at the top level is reserved for the site');
+  if (store.RESERVED_PATHS.has(path)) throw new BadRequest(`"${path}" is reserved for the site's documentation`);
   return path;
 }
 

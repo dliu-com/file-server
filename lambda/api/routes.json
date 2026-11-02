@@ -1,0 +1,10 @@
+{
+  "GET /api/me": { "scope": "files.read" },
+  "GET /api/files": { "scope": "files.read" },
+  "POST /api/uploads": { "scope": "files.write", "action": "createUpload" },
+  "POST /api/uploads/parts": { "scope": "files.write", "action": "signParts" },
+  "POST /api/uploads/complete": { "scope": "files.write", "action": "completeUpload" },
+  "POST /api/uploads/abort": { "scope": "files.write", "action": "abortUpload" },
+  "POST /api/files/move": { "scope": "files.write", "action": "move" },
+  "POST /api/files/delete": { "scope": "files.delete", "action": "remove" }
+}

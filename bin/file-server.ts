@@ -14,5 +14,6 @@ new FileServerStack(app, 'FileServer', {
   subdomain: site.subdomain,
   frameAncestors: site.frameAncestors,
   maxUploadBytes: site.maxUploadGiB * 1024 ** 3,
+  microsoftApi: site.microsoftApi,
   env: { account: process.env.CDK_DEFAULT_ACCOUNT, region },
 });

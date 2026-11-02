@@ -1,9 +1,15 @@
+import * as fs from 'fs';
 import * as path from 'path';
 import { Construct } from 'constructs';
 import {
+  aws_apigatewayv2 as apigateway,
+  aws_apigatewayv2_authorizers as authorizers,
+  aws_apigatewayv2_integrations as integrations,
   aws_certificatemanager as acm,
   aws_cloudfront as cloudfront,
   aws_cloudfront_origins as origins,
+  aws_events as events,
+  aws_events_targets as eventTargets,
   aws_iam as iam,
   aws_lambda as lambda,
   aws_logs as logs,
@@ -20,9 +26,12 @@ import {
   Stack,
   StackProps,
 } from 'aws-cdk-lib';
+import apiRoutes from '../lambda/api/routes.json';
 
 const ROOT = path.join(__dirname, '..');
 export const PARAMETER_PREFIX = '/files';
+/** Replaced at deploy time in web/docs/api.md with the managed API's actual origin. */
+export const API_URL_PLACEHOLDER = '{{FILES_API_URL}}';
 
 export interface FileServerStackProps extends StackProps {
   /** Subdomain under the MainDomain export. */
@@ -31,6 +40,11 @@ export interface FileServerStackProps extends StackProps {
   frameAncestors: string[];
   /** Largest file the upload page accepts. */
   maxUploadBytes: number;
+  /**
+   * Adds the managed API: an HTTP API that accepts Microsoft-issued access tokens for the shared dliu API
+   * registration. Needs the /files/api-tenant-id, /files/api-audience and /files/api-client-id SSM parameters.
+   */
+  microsoftApi?: boolean;
 }
 
 // Everything here is pay-per-use: S3, CloudFront, one Lambda behind a function URL, a CloudFront Function and
@@ -56,6 +70,8 @@ export class FileServerStack extends Stack {
       removalPolicy: RemovalPolicy.RETAIN,
       // Deleted and replaced files can be restored for 30 days.
       versioned: true,
+      // Every change is sent to EventBridge, so files changed outside the app are cleared from the CDN too.
+      eventBridgeEnabled: true,
       // The upload page sends files straight to S3 with presigned URLs.
       cors: [{
         allowedOrigins: [siteUrl],
@@ -106,6 +122,39 @@ export class FileServerStack extends Stack {
     }));
     const functionUrl = api.addFunctionUrl({ authType: lambda.FunctionUrlAuthType.AWS_IAM });
 
+    // ---------- Managed API (Microsoft access tokens for tools and agents; separate from website sign-in) ----------
+    // API Gateway validates Microsoft's signature, issuer, audience, expiry and each route's delegated scope;
+    // the Lambda then checks the gateway, tenant, approved client, shared api.access user role and scope again.
+    let managedApiUrl: string | undefined;
+    if (props.microsoftApi) {
+      const parameter = (name: string) => ssm.StringParameter.valueForStringParameter(this, `${PARAMETER_PREFIX}/api-${name}`);
+      const tenantId = parameter('tenant-id');
+      const audience = parameter('audience');
+      const clientId = parameter('client-id');
+      const httpApi = new apigateway.HttpApi(this, 'MicrosoftApi', {
+        description: 'Files API: Microsoft Entra access tokens, delegated permissions and assigned users',
+      });
+      const authorizer = new authorizers.HttpJwtAuthorizer('MicrosoftJwt',
+        Fn.join('', ['https://login.microsoftonline.com/', tenantId, '/v2.0']), { jwtAudience: [audience] });
+      const integration = new integrations.HttpLambdaIntegration('FilesApi', api);
+      for (const [route, permission] of Object.entries(apiRoutes)) {
+        const [method, routePath] = route.split(' ');
+        httpApi.addRoutes({
+          path: routePath,
+          methods: [apigateway.HttpMethod[method as 'GET' | 'POST']],
+          integration,
+          authorizer,
+          authorizationScopes: [permission.scope],
+        });
+      }
+      api.addEnvironment('API_GATEWAY_ID', httpApi.apiId);
+      api.addEnvironment('API_TENANT_ID', tenantId);
+      api.addEnvironment('API_AUDIENCE', audience);
+      api.addEnvironment('API_CLIENT_ID', clientId);
+      managedApiUrl = httpApi.apiEndpoint;
+      new CfnOutput(this, 'MicrosoftApiUrl', { value: managedApiUrl });
+    }
+
     // ---------- CDN ----------
     // CloudFront requires its certificate in us-east-1 (same pattern as the other sites).
     const certificate = new acm.DnsValidatedCertificate(this, 'FileServerCertificate', {
@@ -150,7 +199,7 @@ export class FileServerStack extends Stack {
       this, 'TrafficGeo', Fn.importValue('TrafficGeoOriginRequestPolicyId'));
 
     const pagesFunction = new cloudfront.Function(this, 'PagesFunction', {
-      comment: 'Serves the file browser for / and every folder URL (ending in /)',
+      comment: 'Serves the file browser for / and every folder URL (ending in /), and the API reference',
       runtime: cloudfront.FunctionRuntime.JS_2_0,
       code: cloudfront.FunctionCode.fromFile({ filePath: path.join(ROOT, 'functions/pages.js') }),
     });
@@ -216,7 +265,9 @@ export class FileServerStack extends Stack {
       domainNames: [domainName],
       certificate,
       minimumProtocolVersion: cloudfront.SecurityPolicyProtocol.TLS_V1_2_2021,
-      priceClass: cloudfront.PriceClass.PRICE_CLASS_100,
+      // Every edge location and HTTP/3, for the lowest latency worldwide (other sites embed these files).
+      priceClass: cloudfront.PriceClass.PRICE_CLASS_ALL,
+      httpVersion: cloudfront.HttpVersion.HTTP2_AND_3,
     });
     Annotations.of(distribution).acknowledgeWarning('@aws-cdk/aws-cloudfront-origins:listBucketSecurityRisk',
       'The bucket root is never requested: the pages function rewrites "/" and defaultRootObject is set.');
@@ -244,8 +295,47 @@ export class FileServerStack extends Stack {
       statements: [new iam.PolicyStatement({ actions: ['cloudfront:CreateInvalidation'], resources: [distribution.distributionArn] })],
     });
 
+    // Files are cached at CloudFront for a day. Replacing or deleting one in S3 by any route (this site, the S3 console,
+    // a script) clears CloudFront's copy within seconds. New files, the site's own _app/ and _data/, and lifecycle
+    // clean-up are skipped, so only real changes use the account's 1,000 free invalidation paths a month.
+    const clearFunction = new lambda.Function(this, 'ClearChangedFiles', {
+      runtime: lambda.Runtime.NODEJS_22_X,
+      architecture: lambda.Architecture.ARM_64,
+      handler: 'clear.handler',
+      code: lambda.Code.fromAsset(path.join(ROOT, 'lambda/api')),
+      timeout: Duration.seconds(30),
+      memorySize: 128,
+      description: 'files.dliu.com: clears CloudFront copies of files replaced or deleted in S3',
+      environment: { FILE_BUCKET: fileBucket.bucketName, DISTRIBUTION_ID: distribution.distributionId },
+      logGroup: new logs.LogGroup(this, 'ClearLogs', {
+        retention: logs.RetentionDays.ONE_MONTH,
+        removalPolicy: RemovalPolicy.DESTROY,
+      }),
+    });
+    clearFunction.addToRolePolicy(new iam.PolicyStatement({ actions: ['s3:ListBucketVersions'], resources: [fileBucket.bucketArn] }));
+    clearFunction.addToRolePolicy(new iam.PolicyStatement({ actions: ['cloudfront:CreateInvalidation'], resources: [distribution.distributionArn] }));
+    new events.Rule(this, 'FileChangedRule', {
+      description: 'files.dliu.com: a file was written or deleted in the file bucket',
+      eventPattern: {
+        source: ['aws.s3'],
+        detailType: ['Object Created', 'Object Deleted'],
+        detail: {
+          bucket: { name: [fileBucket.bucketName] },
+          object: { key: events.Match.anythingButPrefix('_') },
+        },
+      },
+      targets: [new eventTargets.LambdaFunction(clearFunction, { retryAttempts: 4, maxEventAge: Duration.hours(1) })],
+    });
+
+    // The API reference names the managed API's actual origin, which is known only at deploy time.
+    const apiReference = fs.readFileSync(path.join(ROOT, 'web/docs/api.md'), 'utf8');
+    if (!apiReference.includes(API_URL_PLACEHOLDER)) throw new Error(`web/docs/api.md must contain ${API_URL_PLACEHOLDER}`);
     new s3deploy.BucketDeployment(this, 'SiteContent', {
-      sources: [s3deploy.Source.asset(path.join(ROOT, 'web'))],
+      sources: [
+        s3deploy.Source.asset(path.join(ROOT, 'web'), { exclude: ['docs/api.md'] }),
+        // Source.data resolves the embedded API URL token at deploy time.
+        s3deploy.Source.data('docs/api.md', apiReference.split(API_URL_PLACEHOLDER).join(managedApiUrl || '(not deployed)')),
+      ],
       destinationBucket: fileBucket,
       // Pruning only touches this prefix, never the files.
       destinationKeyPrefix: '_app/',

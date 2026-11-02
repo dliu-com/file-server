@@ -90,3 +90,89 @@ test('the API Lambda is invoked only through CloudFront and can invalidate it', 
     PolicyDocument: { Statement: [Match.objectLike({ Action: 'cloudfront:CreateInvalidation' })] },
   });
 });
+
+test('files replaced or deleted in S3 by any route are cleared from CloudFront', () => {
+  template.hasResourceProperties('Custom::S3BucketNotifications', {
+    NotificationConfiguration: { EventBridgeConfiguration: {} },
+  });
+  template.hasResourceProperties('AWS::Events::Rule', {
+    EventPattern: {
+      source: ['aws.s3'],
+      'detail-type': ['Object Created', 'Object Deleted'],
+      detail: { bucket: { name: [Match.anyValue()] }, object: { key: [{ 'anything-but': { prefix: '_' } }] } },
+    },
+    Targets: [Match.objectLike({ RetryPolicy: { MaximumRetryAttempts: 4, MaximumEventAgeInSeconds: 3600 } })],
+  });
+  template.hasResourceProperties('AWS::Lambda::Function', Match.objectLike({
+    Handler: 'clear.handler',
+    Environment: { Variables: { FILE_BUCKET: Match.anyValue(), DISTRIBUTION_ID: Match.anyValue() } },
+  }));
+  const policies = JSON.stringify(template.findResources('AWS::IAM::Policy', {
+    Properties: { PolicyName: Match.stringLikeRegexp('^ClearChangedFiles') },
+  }));
+  expect(policies).toContain('cloudfront:CreateInvalidation');
+  expect(policies).toContain('s3:ListBucketVersions');
+  expect(policies).not.toContain('s3:GetObject');
+  expect(policies).not.toContain('s3:DeleteObject');
+});
+
+test('files are cached at the edge worldwide over HTTP/3', () => {
+  expect(distributionConfig().PriceClass).toBe('PriceClass_All');
+  expect(distributionConfig().HttpVersion).toBe('http2and3');
+});
+
+test('the Microsoft API is opt-in and every exposed route has its exact delegated scope', () => {
+  template.resourceCountIs('AWS::ApiGatewayV2::Api', 0);
+  expect(Object.keys(template.toJSON().Outputs)).not.toContain('MicrosoftApiUrl');
+  const enabled = Template.fromStack(new FileServerStack(new App(), 'FileServerMicrosoft', {
+    subdomain: 'files', frameAncestors: ['https://dliu.com'], maxUploadBytes: 50 * 1024 ** 3,
+    microsoftApi: true, env: { account: '123456789012', region: 'eu-west-1' },
+  }));
+  enabled.resourceCountIs('AWS::ApiGatewayV2::Api', 1);
+  enabled.resourceCountIs('AWS::ApiGatewayV2::Authorizer', 1);
+  enabled.hasResourceProperties('AWS::ApiGatewayV2::Authorizer', {
+    AuthorizerType: 'JWT', IdentitySource: ['$request.header.Authorization'],
+    JwtConfiguration: { Audience: [Match.anyValue()], Issuer: Match.anyValue() },
+  });
+  const issuer = JSON.stringify(Object.values(enabled.findResources('AWS::ApiGatewayV2::Authorizer'))[0].Properties.JwtConfiguration.Issuer);
+  expect(issuer).toContain('https://login.microsoftonline.com/');
+  expect(issuer).toContain('/v2.0');
+  const parameters = JSON.stringify(enabled.toJSON().Parameters);
+  for (const name of ['/files/api-tenant-id', '/files/api-audience', '/files/api-client-id']) expect(parameters).toContain(name);
+  const routes = require('../lambda/api/routes.json');
+  const deployed = Object.values(enabled.findResources('AWS::ApiGatewayV2::Route'));
+  expect(deployed.map((route) => route.Properties.RouteKey).sort()).toEqual(Object.keys(routes).sort());
+  for (const route of deployed) {
+    expect(route.Properties.AuthorizationType).toBe('JWT');
+    expect(route.Properties.AuthorizationScopes).toEqual([routes[route.Properties.RouteKey].scope]);
+    expect(route.Properties.AuthorizerId).toBeDefined();
+  }
+  expect(deployed.some((route) => route.Properties.RouteKey.includes('/auth/') || route.Properties.RouteKey.includes('$default'))).toBe(false);
+  enabled.hasResourceProperties('AWS::Lambda::Url', { AuthType: 'AWS_IAM' });
+  enabled.hasResourceProperties('AWS::Lambda::Permission', {
+    Principal: 'apigateway.amazonaws.com', Action: 'lambda:InvokeFunction', SourceArn: Match.anyValue(),
+  });
+  enabled.hasResourceProperties('AWS::ApiGatewayV2::Integration', { PayloadFormatVersion: '2.0' });
+  enabled.hasResourceProperties('AWS::Lambda::Function', Match.objectLike({
+    Environment: { Variables: Match.objectLike({
+      API_GATEWAY_ID: Match.anyValue(), API_TENANT_ID: Match.anyValue(), API_AUDIENCE: Match.anyValue(), API_CLIENT_ID: Match.anyValue(),
+    }) },
+  }));
+  enabled.hasOutput('MicrosoftApiUrl', { Value: Match.anyValue() });
+  // The website's routing and auth are the same with or without the managed API.
+  const config = (t: Template) => Object.values(t.findResources('AWS::CloudFront::Distribution'))[0].Properties.DistributionConfig;
+  expect(config(enabled).CacheBehaviors.map((b: { PathPattern: string }) => b.PathPattern)).toEqual(['_app/*', '_data/*', 'api/*', 'auth/*']);
+});
+
+test('the API reference is deployed with the managed API origin filled in', () => {
+  const sources = (t: Template) => Object.values(t.findResources('Custom::CDKBucketDeployment'))[0].Properties;
+  expect(sources(template).SourceObjectKeys).toHaveLength(2);
+  expect(JSON.stringify(sources(template).SourceMarkers)).not.toContain('{{FILES_API_URL}}');
+  const enabled = Template.fromStack(new FileServerStack(new App(), 'FileServerDocs', {
+    subdomain: 'files', frameAncestors: [], maxUploadBytes: 1024, microsoftApi: true,
+    env: { account: '123456789012', region: 'eu-west-1' },
+  }));
+  const markers = JSON.stringify(sources(enabled).SourceMarkers);
+  expect(markers).not.toContain('{{FILES_API_URL}}');
+  expect(markers).toContain('MicrosoftApi');
+});

@@ -7,9 +7,12 @@
 const LISTING_KEY = '_data/files.json';
 // Top-level names the site itself uses. Files cannot go there.
 const RESERVED = new Set(['_app', '_data', 'api', 'auth']);
-// Short enough that a replaced or deleted file disappears everywhere within minutes even if the CDN
-// invalidation misses a URL spelling; CloudFront revalidates with S3 (a 304) rather than re-fetching.
-const FILE_CACHE_CONTROL = 'public, max-age=300';
+// Exact paths the pages function serves as the docs pages.
+const RESERVED_PATHS = new Set(['docs', 'docs/api', 'docs/api.md']);
+// Browsers keep a file for 5 minutes; CloudFront keeps it for a day so visitors far from Ireland get it from a nearby
+// edge, and serves the old copy while it refreshes in the background. Replacing or deleting a file in S3, however
+// it happens, clears CloudFront's copy (clear.js), so the day only applies to unchanged files.
+const FILE_CACHE_CONTROL = 'public, max-age=300, s-maxage=86400, stale-while-revalidate=86400';
 
 const s3sdk = () => require('@aws-sdk/client-s3');
 
@@ -96,6 +99,7 @@ module.exports = {
   FILE_CACHE_CONTROL,
   LISTING_KEY,
   RESERVED,
+  RESERVED_PATHS,
   deleteKeys,
   headObject,
   isConflict,

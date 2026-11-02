@@ -17,6 +17,15 @@ describe('pages CloudFront function', () => {
     ['/dliu.com/favicon.png', '/dliu.com/favicon.png'],
     ['/_app/app.js', '/_app/app.js'],
     ['/me/index.html', '/me/index.html'],
+    ['/docs', '/_app/docs.html'],
+    ['/docs/api', '/_app/docs-api.html'],
+    ['/docs/api.md', '/_app/docs/api.md'],
+    ['/docs/', '/_app/index.html'],
+    ['/docs/api/', '/_app/index.html'],
+    ['/docs/api/notes.txt', '/docs/api/notes.txt'],
+    ['/docs/API', '/docs/API'],
+    ['/constructor', '/constructor'],
+    ['/__proto__', '/__proto__'],
   ])('%s -> %s', (input, expected) => {
     expect(uriFor(input)).toBe(expected);
   });
