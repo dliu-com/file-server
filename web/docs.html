@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Docs · Files · dliu.com</title>
+  <meta name="description" content="How files.dliu.com works: architecture, running costs and security">
+  <link rel="icon" type="image/svg+xml" href="/_app/logo.svg">
+  <link rel="stylesheet" href="https://files.dliu.com/dliu.com/ui/v1/dl.css">
+  <link rel="stylesheet" href="https://files.dliu.com/dliu.com/ui/v1/dl-docs.css">
+  <link rel="stylesheet" href="/_app/style.css">
+  <script type="module" src="/_app/docs.js"></script>
+</head>
+<body class="dl-page">
+  <header class="dl-header">
+    <a class="dl-brand" href="/"><img class="dl-logo" src="/_app/logo.svg" alt="" width="32" height="32">Files</a>
+    <nav class="dl-nav" aria-label="Site"></nav>
+  </header>
+  <main class="dl-main dl-docs-main">
+    <nav class="dl-tabs" aria-label="Docs sections">
+      <a href="#architecture" data-tab="architecture">Technical architecture</a>
+      <a href="#cost" data-tab="cost">Cost</a>
+      <a href="#security" data-tab="security">Security</a>
+      <a href="/docs/api">API</a>
+    </nav>
+    <article id="architecture" class="dl-docs">
+      <h2>How it works</h2>
+      <p class="lead">files.dliu.com hosts files that anyone can download and that other dliu.com sites can link to or embed. There are no servers: files sit in S3, CloudFront delivers them, and a small Lambda function runs only when the owner signs in or changes something.</p>
+      <noscript><p>The diagrams on this page need JavaScript.</p></noscript>
+    </article>
+    <article id="cost" class="dl-docs" hidden>
+      <h2>Running costs</h2>
+      <p class="lead">Everything is billed per use. With nobody downloading, the only charge is storing the files in S3.</p>
+    </article>
+    <article id="security" class="dl-docs" hidden>
+      <h2>Security</h2>
+      <p class="lead">Anyone can download; only the owner, signed in with Microsoft, can upload, move or delete.</p>
+    </article>
+  </main>
+  <footer class="dl-footer"><a class="dl-footer-logo" href="https://dliu.com" aria-label="dliu.com"><img src="https://files.dliu.com/dliu.com/favicon.png" alt="" width="24" height="24"></a> <a href="https://dliu.com">dliu.com</a> · <a href="/">Files</a></footer>
+</body>
+</html>

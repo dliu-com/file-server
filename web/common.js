@@ -106,11 +106,14 @@ export async function copyText(text, message = 'Link copied') {
 
 export const signInUrl = () => `/auth/login?return=${encodeURIComponent(location.pathname + location.search)}`;
 
-/** Fills the header's nav: Sign out for the owner, Sign in for everyone else. */
+/** Fills the header's nav: Docs for everyone, then Sign out for the owner or Sign in for everyone else. */
 export function renderNav() {
-  const nav = document.querySelector('header.top nav');
+  const nav = document.querySelector('.dl-header .dl-nav');
   if (!nav) return;
-  nav.replaceChildren(isOwner()
-    ? el('a', { class: 'button', href: '/auth/logout' }, 'Sign out')
-    : el('a', { class: 'button sign-in', href: signInUrl() }, 'Sign in'));
+  // /docs (architecture, cost, security) and /docs/api are the docs pages; /docs/ is an ordinary folder.
+  const docs = el('a', { class: 'dl-button', href: '/docs' }, 'Docs');
+  if (location.pathname === '/docs' || location.pathname === '/docs/api') docs.setAttribute('aria-current', 'page');
+  nav.replaceChildren(docs, isOwner()
+    ? el('a', { class: 'dl-button', href: '/auth/logout' }, 'Sign out')
+    : el('a', { class: 'dl-button dl-signin', href: signInUrl() }, 'Sign in'));
 }

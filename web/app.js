@@ -37,7 +37,7 @@ function pathFromLocation() {
 }
 
 function setStatus(text, kind = 'muted') {
-  $('status').className = kind;
+  $('status').className = `dl-${kind}`;
   $('status').textContent = text;
   $('status').hidden = !text;
 }
@@ -85,12 +85,12 @@ function renderCrumbs() {
 
 function actionsFor(item, isFolder) {
   const link = location.origin + (isFolder ? folderUrl(item.path) : urlPath(item.path));
-  const buttons = [el('button', { type: 'button', title: 'Copy link', onclick: () => copyText(link) }, 'Copy link')];
-  if (!isFolder) buttons.push(el('a', { class: 'button', href: urlPath(item.path), download: name(item.path), title: 'Download' }, 'Download'));
+  const buttons = [el('button', { type: 'button', class: 'dl-button dl-button-small', title: 'Copy link', onclick: () => copyText(link) }, 'Copy link')];
+  if (!isFolder) buttons.push(el('a', { class: 'dl-button dl-button-small', href: urlPath(item.path), download: name(item.path), title: 'Download' }, 'Download'));
   if (owner) {
     buttons.push(
-      el('button', { type: 'button', onclick: () => move(item.path) }, 'Move'),
-      el('button', { type: 'button', class: 'danger', onclick: () => remove(item.path, isFolder ? item.count : 0) }, 'Delete'),
+      el('button', { type: 'button', class: 'dl-button dl-button-small', onclick: () => move(item.path) }, 'Move'),
+      el('button', { type: 'button', class: 'dl-button dl-button-small dl-button-danger', onclick: () => remove(item.path, isFolder ? item.count : 0) }, 'Delete'),
     );
   }
   return el('td', { class: 'actions' }, el('div', { class: 'row' }, buttons));
@@ -103,14 +103,14 @@ function render() {
   const rows = [
     ...folders.map((f) => el('tr', {},
       el('td', { class: 'name' }, el('a', { href: folderUrl(f.path), 'data-folder': f.path }, el('span', { class: 'icon', 'aria-hidden': 'true' }, '📁'), f.name)),
-      el('td', { class: 'size' }, `${f.count} file${f.count === 1 ? '' : 's'}`),
+      el('td', { class: 'size dl-num' }, `${f.count} file${f.count === 1 ? '' : 's'}`),
       el('td', { class: 'date' }, formatDate(f.modified)),
       actionsFor(f, true))),
     ...files.map((f) => el('tr', {},
       el('td', { class: 'name' }, el('a', { href: urlPath(f.path) },
         el('span', { class: 'icon', 'aria-hidden': 'true' }, iconFor(f.type)),
         query ? f.path.slice(folder ? folder.length + 1 : 0) : name(f.path))),
-      el('td', { class: 'size' }, formatSize(f.size)),
+      el('td', { class: 'size dl-num' }, formatSize(f.size)),
       el('td', { class: 'date' }, formatDate(f.modified)),
       actionsFor(f, false))),
   ];
@@ -346,7 +346,7 @@ async function uploadAll(items) {
       if (!item.file.size) throw new Error('empty files cannot be uploaded');
       const outcome = await uploadOne(item.file, path, report);
       results[outcome] += 1;
-      if (outcome === 'skipped') log.append(el('li', { class: 'muted' }, `Skipped ${item.relative}`));
+      if (outcome === 'skipped') log.append(el('li', { class: 'dl-muted' }, `Skipped ${item.relative}`));
     } catch (error) {
       if (error.status === 401) {
         location.href = signInUrl();
@@ -354,7 +354,7 @@ async function uploadAll(items) {
       }
       if (current.cancelled) break;
       results.failed += 1;
-      log.append(el('li', { class: 'error' }, `${item.relative}: ${error.message}`));
+      log.append(el('li', { class: 'dl-error' }, `${item.relative}: ${error.message}`));
     }
     done += item.file.size;
     render();
