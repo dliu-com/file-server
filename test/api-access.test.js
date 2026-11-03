@@ -21,7 +21,7 @@ beforeEach(() => {
 });
 afterEach(() => { process.env = { ...originalEnv }; });
 
-const cookie = () => `${auth.SESSION_COOKIE}=${auth.sign({ user: 'owner@example.com', exp: NOW / 1000 + 300 }, auth.sessionKey(config))}`;
+const cookie = () => `${auth.SESSION_COOKIE}=${auth.sign({ typ: 'session', user: 'owner@example.com', exp: NOW / 1000 + 300 }, auth.sessionKey(config))}`;
 
 function event(method = 'GET', path = '/api/files', scopes = ['files.read'], body) {
   return {

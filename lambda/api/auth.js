@@ -19,6 +19,12 @@ function sessionKey(config) {
   return crypto.createHmac('sha256', config.clientSecret).update('files-session-v1').digest();
 }
 
+// The short-lived sign-in cookie uses its own key and type, so the cookie that /auth/login hands to anyone
+// cannot be replayed as a session (different key) even if the type check were bypassed.
+function authKey(config) {
+  return crypto.createHmac('sha256', config.clientSecret).update('files-auth-v1').digest();
+}
+
 // Signs upload tokens, which carry an upload's details between the API calls instead of a pending record in S3.
 function uploadKey(config) {
   return crypto.createHmac('sha256', config.clientSecret).update('files-upload-v1').digest();
@@ -30,7 +36,7 @@ function sign(payload, key) {
   return `${body}.${mac}`;
 }
 
-function verifySigned(token, key, now = Date.now()) {
+function verifySigned(token, key, now = Date.now(), type = null) {
   if (typeof token !== 'string') return null;
   const [body, mac, extra] = token.split('.');
   if (!body || !mac || extra !== undefined) return null;
@@ -44,6 +50,8 @@ function verifySigned(token, key, now = Date.now()) {
     return null;
   }
   if (!payload || typeof payload.exp !== 'number' || payload.exp <= nowSeconds(now)) return null;
+  // The signed cookies share a format; the type stops one being accepted in another's place.
+  if (type !== null && payload.typ !== type) return null;
   return payload;
 }
 
@@ -75,7 +83,7 @@ function authority(config) {
 }
 
 function getSession(event, config, now = Date.now()) {
-  return verifySigned(parseCookies(event)[SESSION_COOKIE], sessionKey(config), now);
+  return verifySigned(parseCookies(event)[SESSION_COOKIE], sessionKey(config), now, 'session');
 }
 
 function startLogin(config, siteUrl, now = Date.now(), returnTo = '/') {
@@ -83,7 +91,7 @@ function startLogin(config, siteUrl, now = Date.now(), returnTo = '/') {
   const nonce = b64url(crypto.randomBytes(24));
   const verifier = b64url(crypto.randomBytes(48));
   const challenge = b64url(crypto.createHash('sha256').update(verifier).digest());
-  const transient = sign({ state, nonce, verifier, returnTo: safeReturnPath(returnTo), exp: nowSeconds(now) + AUTH_SECONDS }, sessionKey(config));
+  const transient = sign({ typ: 'auth', state, nonce, verifier, returnTo: safeReturnPath(returnTo), exp: nowSeconds(now) + AUTH_SECONDS }, authKey(config));
   const params = new URLSearchParams({
     client_id: config.clientId,
     response_type: 'code',
@@ -156,7 +164,7 @@ async function finishLogin(event, config, siteUrl, { fetchImpl = fetch, now = Da
     return { error: `Sign-in failed: ${code}`, status: 401, cookies: [clearAuth] };
   }
 
-  const transient = verifySigned(parseCookies(event)[AUTH_COOKIE], sessionKey(config), now);
+  const transient = verifySigned(parseCookies(event)[AUTH_COOKIE], authKey(config), now, 'auth');
   if (!transient || !query.state || query.state !== transient.state || !query.code) {
     return { error: 'Sign-in expired or invalid. Please try again.', status: 400, cookies: [clearAuth] };
   }
@@ -187,6 +195,7 @@ async function finishLogin(event, config, siteUrl, { fetchImpl = fetch, now = Da
   }
 
   const session = sign({
+    typ: 'session',
     user: claims.preferred_username || claims.email || claims.oid,
     name: claims.name,
     oid: claims.oid,
@@ -213,6 +222,7 @@ module.exports = {
   parseCookies,
   safeReturnPath,
   sessionKey,
+  authKey,
   sign,
   startLogin,
   uploadKey,

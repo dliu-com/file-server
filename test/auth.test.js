@@ -58,7 +58,7 @@ function beginLogin() {
   const login = auth.startLogin(config, SITE, NOW);
   const url = new URL(login.location);
   const transient = cookieValue(login.cookies, auth.AUTH_COOKIE);
-  const payload = auth.verifySigned(transient, auth.sessionKey(config), NOW);
+  const payload = auth.verifySigned(transient, auth.authKey(config), NOW, 'auth');
   return { url, transient, payload };
 }
 
@@ -79,6 +79,22 @@ describe('signed tokens', () => {
     expect(auth.verifySigned(token, key, NOW + 61000)).toBeNull();
     expect(auth.verifySigned(token, auth.sessionKey({ clientSecret: 'other' }), NOW)).toBeNull();
     expect(auth.verifySigned(undefined, key, NOW)).toBeNull();
+  });
+
+  test('the sign-in (transient) cookie cannot be replayed as a session', () => {
+    // The __Host-files_auth cookie that /auth/login hands to anyone must never open the API as a session.
+    const login = auth.startLogin(config, SITE, NOW);
+    const transient = cookieValue(login.cookies, auth.AUTH_COOKIE);
+    const asSession = auth.getSession({ cookies: [`${auth.SESSION_COOKIE}=${transient}`] }, config, NOW);
+    expect(asSession).toBeNull();
+    // A real session (type "session") is still accepted.
+    const session = auth.sign({ typ: 'session', user: 'me', exp: NOW / 1000 + 60 }, auth.sessionKey(config));
+    expect(auth.getSession({ cookies: [`${auth.SESSION_COOKIE}=${session}`] }, config, NOW).user).toBe('me');
+    // A session signed with the auth key, or without the type, is rejected.
+    const wrongKey = auth.sign({ typ: 'session', user: 'me', exp: NOW / 1000 + 60 }, auth.authKey(config));
+    expect(auth.getSession({ cookies: [`${auth.SESSION_COOKIE}=${wrongKey}`] }, config, NOW)).toBeNull();
+    const noType = auth.sign({ user: 'me', exp: NOW / 1000 + 60 }, auth.sessionKey(config));
+    expect(auth.getSession({ cookies: [`${auth.SESSION_COOKIE}=${noType}`] }, config, NOW)).toBeNull();
   });
 });
 
