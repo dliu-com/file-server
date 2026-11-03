@@ -112,18 +112,20 @@ function createFiles({ s3, bucket, region, maxBytes, tokenKey, now = Date.now, i
   }
 
   // The presigned part URLs sign only `host`, so a writer could PUT more bytes per part than declared and
-  // store far more than the size they asked for (a cost attack). Summing the real part sizes before the
-  // upload is finalised catches that; aborting instead of completing means an existing file is never touched.
-  async function uploadedBytes(path, uploadId) {
+  // store far more than the size they asked for (a cost attack), or swap a part after it is measured. Reading
+  // the parts straight from S3 — their real sizes and ETags — and completing with those (never the client's
+  // list) catches both: the size is checked against what S3 actually holds, and a part changed after this read
+  // makes Complete fail. Aborting instead of completing means an existing file is never touched.
+  async function listUploadedParts(path, uploadId) {
     const { ListPartsCommand } = sdk();
-    let total = 0;
+    const parts = [];
     let marker;
     do {
       const result = await s3.send(new ListPartsCommand({ Bucket: bucket, Key: path, UploadId: uploadId, PartNumberMarker: marker }));
-      for (const part of result.Parts || []) total += part.Size || 0;
+      for (const part of result.Parts || []) parts.push({ PartNumber: part.PartNumber, ETag: part.ETag, Size: part.Size || 0 });
       marker = result.IsTruncated ? result.NextPartNumberMarker : undefined;
     } while (marker);
-    return total;
+    return parts.sort((a, b) => a.PartNumber - b.PartNumber);
   }
 
   // Server-side copy within the bucket. Large files are copied in parallel parts so moves stay fast.
@@ -196,24 +198,39 @@ function createFiles({ s3, bucket, region, maxBytes, tokenKey, now = Date.now, i
 
     async completeUpload(body) {
       const upload = readToken(body.token);
-      const parts = Array.isArray(body.parts) ? body.parts : [];
-      if (parts.length !== upload.partCount) throw new BadRequest(`Expected ${upload.partCount} parts, got ${parts.length}`);
-      const sorted = parts.map((p) => {
+      const claimed = Array.isArray(body.parts) ? body.parts : [];
+      if (claimed.length !== upload.partCount) throw new BadRequest(`Expected ${upload.partCount} parts, got ${claimed.length}`);
+      const claimedEtags = new Map();
+      for (const p of claimed) {
         if (!p || !Number.isInteger(p.partNumber) || typeof p.etag !== 'string' || !/^"?[0-9a-fA-F-]{1,64}"?$/.test(p.etag)) {
           throw new BadRequest('Invalid part list');
         }
-        return { PartNumber: p.partNumber, ETag: p.etag };
-      }).sort((a, b) => a.PartNumber - b.PartNumber);
-      if (sorted.some((p, i) => p.PartNumber !== i + 1)) throw new BadRequest('Invalid part list');
+        if (p.partNumber < 1 || p.partNumber > upload.partCount || claimedEtags.has(p.partNumber)) throw new BadRequest('Invalid part list');
+        claimedEtags.set(p.partNumber, p.etag.replace(/"/g, ''));
+      }
 
       const { CompleteMultipartUploadCommand, AbortMultipartUploadCommand } = sdk();
-      const actual = await uploadedBytes(upload.path, upload.uploadId);
+      const abort = () => s3.send(new AbortMultipartUploadCommand({ Bucket: bucket, Key: upload.path, UploadId: upload.uploadId })).catch(() => {});
+      const uploaded = await listUploadedParts(upload.path, upload.uploadId);
+      const actual = uploaded.reduce((sum, p) => sum + p.Size, 0);
       if (actual !== upload.size) {
-        await s3.send(new AbortMultipartUploadCommand({ Bucket: bucket, Key: upload.path, UploadId: upload.uploadId })).catch(() => {});
+        await abort();
         throw new BadRequest(`Uploaded ${actual} bytes but ${upload.size} were declared`);
       }
+      if (uploaded.length !== upload.partCount || uploaded.some((p, i) => p.PartNumber !== i + 1)) {
+        await abort();
+        throw new BadRequest('Invalid part list');
+      }
+      // Complete with S3's own parts, and only if the client reported the same ETag S3 holds for each one.
+      for (const p of uploaded) {
+        if (claimedEtags.get(p.PartNumber) !== String(p.ETag).replace(/"/g, '')) {
+          await abort();
+          throw new BadRequest('Invalid part list');
+        }
+      }
       await s3.send(new CompleteMultipartUploadCommand({
-        Bucket: bucket, Key: upload.path, UploadId: upload.uploadId, MultipartUpload: { Parts: sorted },
+        Bucket: bucket, Key: upload.path, UploadId: upload.uploadId,
+        MultipartUpload: { Parts: uploaded.map((p) => ({ PartNumber: p.PartNumber, ETag: p.ETag })) },
       }));
       const head = await store.headObject(s3, bucket, upload.path);
       if (!head) throw new Error('Uploaded file is missing');

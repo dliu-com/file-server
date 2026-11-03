@@ -41,6 +41,7 @@ async function upload(call, s3, path, { size = 1234, contentType = 'application/
   const created = await call('POST', '/api/uploads', { body: { path, contentType, size, overwrite } });
   expect(created.statusCode).toBe(200);
   const plan = created.json;
+  s3.partCount = plan.partCount;
   const parts = Array.from({ length: plan.partCount }, (_, i) => ({ partNumber: i + 1, etag: `"${'a'.repeat(32)}"` }));
   const done = await call('POST', '/api/uploads/complete', { body: { token: plan.token, parts } });
   expect(done.statusCode).toBe(200);
@@ -209,6 +210,20 @@ describe('API', () => {
     // The upload was aborted, nothing was listed, and no object was created.
     expect(s3.uploads.size).toBe(0);
     expect(s3.objects.has('big.bin')).toBe(false);
+    expect(s3.calls.some((c) => c.name === 'CompleteMultipartUploadCommand')).toBe(false);
+  });
+
+  test('complete uses S3\'s own part list and rejects a client that reports a different ETag', async () => {
+    const { call, s3 } = setup();
+    // S3 holds part 1 with the default ETag; the client claims a different (well-formed) ETag.
+    s3.completedSize = 1234;
+    const plan = (await call('POST', '/api/uploads', { body: { path: 'x.bin', size: 1234 } })).json;
+    const parts = [{ partNumber: 1, etag: `"${'b'.repeat(32)}"` }];
+    const done = await call('POST', '/api/uploads/complete', { body: { token: plan.token, parts } });
+    expect(done.statusCode).toBe(400);
+    // The upload was aborted and never completed, so no mismatched object is stored.
+    expect(s3.uploads.size).toBe(0);
+    expect(s3.objects.has('x.bin')).toBe(false);
     expect(s3.calls.some((c) => c.name === 'CompleteMultipartUploadCommand')).toBe(false);
   });
 

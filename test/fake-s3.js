@@ -83,11 +83,22 @@ function createFakeS3() {
       case 'ListPartsCommand': {
         const upload = uploads.get(input.UploadId);
         if (!upload) throw error('NoSuchUpload', 404);
-        // Browser-uploaded parts never reach this fake; report the size the test says S3 received.
-        const total = upload.parts.size
-          ? [...upload.parts.values()].reduce((sum, body) => sum + body.length, 0)
-          : (fakeS3.completedSize != null ? fakeS3.completedSize : 1234);
-        return { Parts: [{ PartNumber: 1, Size: total }], IsTruncated: false };
+        // Browser-uploaded parts never reach this fake, so report what the test says S3 holds: `partCount`
+        // parts summing to `completedSize`, each with `partEtag` (defaults match the upload() helper's claims).
+        if (upload.parts.size) {
+          const parts = [...upload.parts.entries()].sort((a, b) => a[0] - b[0])
+            .map(([PartNumber, body]) => ({ PartNumber, ETag: `"part-${PartNumber}"`, Size: body.length }));
+          return { Parts: parts, IsTruncated: false };
+        }
+        const total = fakeS3.completedSize != null ? fakeS3.completedSize : 1234;
+        const count = fakeS3.partCount || 1;
+        const base = Math.floor(total / count);
+        const parts = Array.from({ length: count }, (_, i) => ({
+          PartNumber: i + 1,
+          ETag: fakeS3.partEtag || `"${'a'.repeat(32)}"`,
+          Size: i === count - 1 ? total - base * (count - 1) : base,
+        }));
+        return { Parts: parts, IsTruncated: false };
       }
       default:
         throw new Error(`Fake S3 does not handle ${name}`);
