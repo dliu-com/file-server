@@ -13,8 +13,8 @@ const HEALTH = parseArray('HEALTH_FUNCTIONS');
 
 describe('health docs and endpoint stay in sync (HEALTH.md §3)', () => {
   test('the three testing surfaces are all wired up', () => {
-    // Clean-URL routing for the human page and the machine-readable Markdown.
-    expect(pagesFn).toContain("'/docs/health': '/_app/docs-health.html'");
+    // The human page is now the Testing tab on /docs; the old path 301-redirects to it.
+    expect(pagesFn).toContain("'/docs/health': '/docs#health'");
     expect(pagesFn).toContain("'/docs/health.md': '/_app/docs/health.md'");
     // The public endpoint exists.
     expect(endpoint).toContain("path === '/health'");

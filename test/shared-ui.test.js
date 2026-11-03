@@ -5,7 +5,7 @@ const read = (file) => fs.readFileSync(path.join(__dirname, '..', file), 'utf8')
 const DL_CSS = '<link rel="stylesheet" href="https://files.dliu.com/dliu.com/ui/v1/dl.css">';
 const DL_DOCS_CSS = '<link rel="stylesheet" href="https://files.dliu.com/dliu.com/ui/v1/dl-docs.css">';
 const DL_ICON = 'https://files.dliu.com/dliu.com/favicon.png';
-const PAGES = ['web/index.html', 'web/docs.html', 'web/docs-api.html', 'web/docs-health.html'];
+const PAGES = ['web/index.html', 'web/docs.html', 'web/docs-api.html'];
 
 test('every page loads the shared dliu.com stylesheet before its own', () => {
   for (const file of PAGES) {
@@ -31,7 +31,7 @@ test('every page shows the Files logo top left and as favicon, and the DL logo i
   expect(read('web/logo.svg')).toContain('<svg');
 });
 
-test.each(['web/docs.html', 'web/docs-api.html', 'web/docs-health.html'])('%s uses the shared docs stylesheet and the same four tabs', (file) => {
+test.each(['web/docs.html', 'web/docs-api.html'])('%s uses the shared docs stylesheet and the same tabs', (file) => {
   const page = read(file);
   expect(page.indexOf(DL_CSS)).toBeLessThan(page.indexOf(DL_DOCS_CSS));
   expect(page.indexOf(DL_DOCS_CSS)).toBeLessThan(page.indexOf('/_app/style.css'));
@@ -39,8 +39,8 @@ test.each(['web/docs.html', 'web/docs-api.html', 'web/docs-health.html'])('%s us
   expect(page).toContain('<nav class="dl-tabs" aria-label="Docs sections" data-zh-label="文档章节">');
   expect(page).toMatch(/<article (id="\w+" )?class="dl-docs/);
   const tabs = [...page.matchAll(/<nav class="dl-tabs"[^>]*>([\s\S]*?)<\/nav>/g)][0][1];
-  expect([...tabs.matchAll(/>([^<]+)<\/a>/g)].map((m) => m[1])).toEqual(['Technical architecture', 'Cost', 'Security', 'API']);
-  for (const zh of ['技术架构', '运行成本', '安全']) expect(tabs).toContain(`data-zh="${zh}"`);
+  expect([...tabs.matchAll(/>([^<]+)<\/a>/g)].map((m) => m[1])).toEqual(['Technical architecture', 'Cost', 'Security', 'Testing', 'API']);
+  for (const zh of ['技术架构', '运行成本', '安全', '测试']) expect(tabs).toContain(`data-zh="${zh}"`);
 });
 
 test('the docs page scripts and diagram kit load only from /_app/', () => {
@@ -48,7 +48,7 @@ test('the docs page scripts and diagram kit load only from /_app/', () => {
   expect(page).toContain('<script src="/_app/i18n.js" defer></script>');
   expect(page).toContain('<script type="module" src="/_app/docs.js"></script>');
   expect(read('web/docs.js')).toContain("from './diagram.js'");
-  for (const id of ['architecture', 'cost', 'security']) expect(page).toContain(`<article id="${id}" class="dl-docs"`);
+  for (const id of ['architecture', 'cost', 'security', 'health']) expect(page).toContain(`<article id="${id}" class="dl-docs"`);
 });
 
 test('the app stylesheet leaves the header, buttons, docs and palette to the shared stylesheets', () => {

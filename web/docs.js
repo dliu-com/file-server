@@ -1,11 +1,13 @@
 import { renderNav, t, onLanguageChange } from './common.js';
 import { flow, tiers, stats, table, callout, more } from './diagram.js';
+import { health } from './docs-health.js';
 
-const TABS = ['architecture', 'cost', 'security'];
+const TABS = ['architecture', 'cost', 'security', 'health'];
 const TITLES = {
   architecture: () => t('技术架构', 'Technical architecture'),
   cost: () => t('运行成本', 'Cost'),
   security: () => t('安全', 'Security'),
+  health: () => t('测试', 'Testing'),
 };
 const num = (text) => ({ text, className: 'num' });
 const mono = (text) => ({ text, className: 'mono' });
@@ -132,11 +134,11 @@ function architecture(root) {
     [mono('/<path>'), t('存储桶中该路径的文件', 'The file at that path in the bucket'), t('浏览器 5 分钟，边缘 1 天', '5 minutes in browsers, 1 day at the edge')],
     [mono('/_app/*'), t('网站的页面、脚本和样式', 'The site’s pages, scripts and styles'), t('每次加载都检查', 'Checked on every load')],
     [mono('/_data/files.json'), t('文件清单', 'The file list'), t('每次加载都检查', 'Checked on every load')],
-    [mono('/dliu.com/*'), t('所有 dliu.com 网站的共享外观（由 shared-resources 仓库发布）', 'The shared look for all dliu.com sites (published from the shared-resources repository)'), t('当作文件', 'As a file')],
+    [mono('/dliu.com/*'), t('所有 dliu.com 网站的共享外观（经托管 API 发布）', 'The shared look for all dliu.com sites (published through the managed API)'), t('当作文件', 'As a file')],
     [mono('/docs /docs/api'), t('这些文档页面', 'These docs pages'), t('每次加载都检查', 'Checked on every load')],
     [mono('/api/* /auth/*'), t('经函数 URL 的 Lambda', 'The Lambda, through its function URL'), t('从不缓存', 'Never cached')],
   ]));
-  add('p', t('顶层名称 _app、_data、api 和 auth，文件 index.html，以及确切路径 docs、docs/api 和 docs/api.md 属于网站，所以文件不能上传到那里。名为 docs/ 的文件夹没问题。', 'The top-level names _app, _data, api and auth, the file index.html and the exact paths docs, docs/api and docs/api.md belong to the site, so files cannot be uploaded there. A folder called docs/ is fine.'), 'dg-note');
+  add('p', t('顶层名称 _app、_data、api 和 auth，文件 index.html，以及确切路径 docs、docs/api 和 docs/api.md 属于网站，所以文件不能上传到那里。名为 docs/ 的文件夹没问题。顶层 dliu.com 存放每个 dliu.com 网站都加载的共享文件：对文件网站只读（登录的网站会话不能上传、替换、移动或删除），只能通过托管 API（auth.dliu.com 令牌）更改，这样共享清单才能保持准确。', 'The top-level names _app, _data, api and auth, the file index.html and the exact paths docs, docs/api and docs/api.md belong to the site, so files cannot be uploaded there. A folder called docs/ is fine. The top-level dliu.com holds the files every dliu.com site loads: it is read-only to the Files website (signed-in website sessions cannot upload, replace, move or delete it) and can only be changed through the managed API (an auth.dliu.com token), which keeps the shared listing accurate.'), 'dg-note');
 
   add('h2', t('清除 CDN', 'Clearing the CDN'));
   add('p', t('CloudFront 把每个文件保留一天，这样远离爱尔兰的访客也能从就近的边缘取到。但只要文件在 S3 中被替换或删除——无论来自本站、API、S3 控制台还是脚本——S3 都会通知 EventBridge，一个小 Lambda 会在约一分钟内从 CloudFront 清除该文件。新文件会被跳过，因为 CloudFront 本来就没有它。本站上做的移动和删除也会立即清除旧路径。', 'CloudFront keeps each file for a day so visitors far from Ireland get it from a nearby edge. Whenever a file is replaced or deleted in S3, however that happens (this site, the API, the S3 console or a script), S3 tells EventBridge and a small Lambda clears that file from CloudFront within about a minute. New files are skipped, because CloudFront never had them. Moves and deletes made on this site also clear the old paths straight away.'));
@@ -268,7 +270,7 @@ function security(root) {
         label: 'API Lambda', badge: 'API', tone: 'app', link: t('由 CloudFront 签名（IAM、OAC）', 'signed by CloudFront (IAM, OAC)'),
         nodes: [
           { icon: 'lock', title: t('会话检查', 'Session check'), text: t('网站 /api 调用需要签名会话；改动还需 Origin 为 https://files.dliu.com。可选的托管 API 改用 Microsoft 令牌、权限范围和被分配用户角色', 'Website /api calls need a signed session; changes also need Origin https://files.dliu.com. The optional managed API uses Microsoft tokens, scopes and the assigned-user role instead') },
-          { icon: 'filter', title: t('输入检查', 'Input checks'), text: t('写入前校验路径、大小、内容类型和分段号；共享的 dliu.com/ 和网站自己的 _app/ 是保留前缀，IAM 角色也明确禁止写入', 'Paths, sizes, content types and part numbers validated before anything is written; the shared dliu.com/ and the site’s own _app/ are reserved prefixes the IAM role is also explicitly denied from writing') },
+          { icon: 'filter', title: t('输入检查', 'Input checks'), text: t('写入前校验路径、大小、内容类型和分段号；网站自己的 _app/ 对两个入口都是保留前缀。共享的 dliu.com/ 对网站只读、网站 Lambda 角色被 IAM 明确禁止写入，只有独立的托管 API 角色能写', 'Paths, sizes, content types and part numbers validated before anything is written; the site’s own _app/ is a reserved prefix for both entry points. The shared dliu.com/ is read-only to the website and the website Lambda role is explicitly IAM-denied from writing it; only the separate managed-API role may') },
         ],
       },
       {
@@ -308,9 +310,9 @@ function security(root) {
     [t('无有效令牌的托管 API', 'Managed API without a valid token'), t('无令牌或无效令牌返回 401', 'No token or an invalid token returns 401'), t('✓ 401', '✓ 401'), '2026-11-03'],
     [t('托管 API 权限范围和角色', 'Managed API scopes and roles'), t('缺少 api.access 角色、客户端（azp）错误、删除用 files.read、伪造网关 ID 都应被拒绝；每个路由的范围要匹配', 'Missing api.access role, wrong client (azp), files.read on delete and a forged gateway id must all be refused; each route’s scope must match'), t('✓ 直接调用：角色、azp、范围 403，伪造网关 401；8 个路由范围全部匹配', '✓ Direct invoke: role, azp, scope 403, forged gateway 401; all 8 route scopes match'), '2026-11-03'],
     [t('预签名上传', 'Presigned upload'), t('上传地址只对一个键、一个上传 ID 和分段号签名，一小时后过期', 'Upload URLs are signed for one key, one upload id and part number, and expire in an hour'), t('✓ 由单元测试对 AWS 签名器验证', '✓ Verified by unit tests against the AWS signer'), '2026-11-03'],
-    [t('保留路径和路径穿越', 'Reserved paths and traversal'), t('_app、_data、api、auth、dliu.com、index.html、docs、..、%、\\ 被拒绝', '_app, _data, api, auth, dliu.com, index.html, docs, .., %, \\ are refused'), t('✓ 由单元测试覆盖', '✓ Covered by unit tests'), '2026-11-03'],
+    [t('保留路径和路径穿越', 'Reserved paths and traversal'), t('_app、_data、api、auth、index.html、docs、..、%、\\ 对两个入口都被拒绝；dliu.com/ 被网站拒绝（只有托管 API 能写）', '_app, _data, api, auth, index.html, docs, .., %, \\ are refused for both entry points; dliu.com/ is refused on the website (only the managed API may write it)'), t('✓ 由单元测试覆盖', '✓ Covered by unit tests'), '2026-11-03'],
     [t('上传的 HTML/SVG 运行脚本', 'Uploaded HTML/SVG runs script'), t('文件带网站的 CSP（脚本只来自 /_app/）和 nosniff 分发；无法写入 _app/', 'Files are served with the site’s CSP (scripts from /_app/ only) and nosniff; nothing can be written to _app/'), t('✓ 在文件路径上确认了响应头', '✓ Headers confirmed on a file path'), '2026-11-03'],
-    [t('覆盖所有网站共享的 dliu.com 样式（供应链）', 'Overwrite the shared dliu.com stylesheet every site loads (supply chain)'), t('应用拒绝任何 dliu.com/ 路径，且 IAM 角色被明确禁止写入 dliu.com/* 和 _app/*；只有带外发布可改动它们', 'The app refuses any dliu.com/ path and the IAM role is explicitly denied writing dliu.com/* and _app/*; only out-of-band publishing can change them'), t('修复前上传 dliu.com/ui/v1/dl.css 被允许；现在应用拒绝，线上角色也带 Deny 语句', 'Uploading dliu.com/ui/v1/dl.css was allowed before the fix; now the app refuses it and the live role carries the Deny statement'), FIXED],
+    [t('覆盖所有网站共享的 dliu.com 样式（供应链）', 'Overwrite the shared dliu.com stylesheet every site loads (supply chain)'), t('文件网站拒绝任何 dliu.com/ 写入，且网站 Lambda 角色被 IAM 明确禁止写入 dliu.com/* 和 _app/*；只有独立的托管 API 函数/角色（需 Microsoft 令牌和 files.write 范围）能写，以保持共享清单准确', 'The Files website refuses any dliu.com/ write, and the website Lambda role is explicitly IAM-denied writing dliu.com/* and _app/*; only the separate managed-API function/role (a Microsoft token with files.write) may, to keep the shared listing accurate'), t('网站会话上传 dliu.com/ui/v1/dl.css 被拒绝；托管 API 可写，网站线上角色带 dliu.com/* Deny 语句', 'A website session uploading dliu.com/ui/v1/dl.css is refused; the managed API may write it, and the live website role carries the dliu.com/* Deny statement'), FIXED],
     [t('上传超过声明大小的字节（盗刷）', 'Upload more bytes than declared (cost abuse)'), t('完成上传前，实际分段大小之和必须等于声明的大小，否则中止并返回 400', 'Before the upload is finalised the real part sizes must sum to the declared size, or it is aborted and returns 400'), t('✓ 为 40 MiB 的上传提交 90 MiB 的内容被拒绝并中止，未创建对象', '✓ A 90 MiB body for a 40 MiB upload is rejected and aborted; no object is created'), FIXED],
     [t('缓存欺骗', 'Cache deception'), t('/api/me/x.css 之类的路径返回 401，且不被缓存', 'A path like /api/me/x.css returns 401 and is not cached'), t('✓ 401，未缓存', '✓ 401, not cached'), '2026-11-03'],
     [t('默认 CloudFront 域名', 'Default CloudFront domain'), t('*.cloudfront.net 返回相同的安全响应头；__Host- 会话 Cookie 无法在该域设置；/api 返回 401', 'The *.cloudfront.net domain returns the same security headers; the __Host- session cookie cannot be set there; /api returns 401'), t('✓ 响应头一致，/api 返回 401', '✓ Same headers, 401 on /api'), '2026-11-03'],
@@ -320,7 +322,7 @@ function security(root) {
   add('h2', t('威胁模型', 'Threat model'));
   root.append(table([t('情景', 'Scenario'), t('剩余风险', 'Residual risk'), t('控制措施', 'Controls')], [
     [t('所有者以外的人上传、移动或删除文件', 'Someone other than the owner uploads, moves or deletes a file'), LOW, t('每次改动都需要用从 Entra 客户端密钥派生的密钥签名的会话 Cookie；登录仅限单租户应用被分配的用户，Lambda 还检查 @dliu.com 邮箱域', 'Every change needs a session cookie signed with a key derived from the Entra client secret; sign-in is limited to assigned users of a single-tenant app, and the Lambda also checks the @dliu.com email domain')],
-    [t('写入者覆盖所有 dliu.com 网站都加载的共享 dl.css（供应链）', 'A writer overwrites the shared dl.css that every dliu.com site loads (supply chain)'), LOW, t('2026 年 11 月 3 日已修复。dliu.com/ 现在是应用拒绝的保留前缀，API 的 IAM 角色也被明确禁止写入 dliu.com/* 和 _app/*，所以即使路径检查被绕过也改不了这些文件；只有带外发布（make publish，独立凭证）能改。被篡改的 dl.css 会影响所有网站，因此按供应链风险对待。读取这些文件不受影响', 'Fixed 3 November 2026. dliu.com/ is now a reserved prefix the app refuses, and the API’s IAM role is explicitly denied writing dliu.com/* and _app/*, so even a bypass of the path check cannot change those files; only out-of-band publishing (make publish, separate credentials) can. A tampered dl.css would affect every site, so it is treated as a supply-chain risk. Reading those files is unaffected')],
+    [t('写入者覆盖所有 dliu.com 网站都加载的共享 dl.css（供应链）', 'A writer overwrites the shared dl.css that every dliu.com site loads (supply chain)'), LOW, t('dliu.com/ 对文件网站只读：登录的网站会话不能写它，网站 Lambda 角色也被 IAM 明确禁止写入 dliu.com/* 和 _app/*，所以即使路径检查被绕过也改不了。只有独立的托管 API 函数/角色（需 auth.dliu.com 的 Microsoft 令牌和 files.write 范围）能写，这样 shared-resources 发布更新时共享清单保持准确。被篡改的 dl.css 会影响所有网站，因此按供应链风险对待；访问范围限于 Entra 被分配的用户。读取这些文件不受影响', 'dliu.com/ is read-only to the Files website: signed-in website sessions cannot write it, and the website Lambda role is explicitly IAM-denied writing dliu.com/* and _app/*, so even a bypass of the path check cannot change them. Only the separate managed-API function/role (a Microsoft token from auth.dliu.com with the files.write scope) may write it, so the shared listing stays accurate when shared-resources publishes updates. A tampered dl.css would affect every site, so it is treated as a supply-chain risk; write access is limited to Entra-assigned users. Reading those files is unaffected')],
     [t('读过公开源码的人把 /auth/login 发给任何人的登录 Cookie 当作会话 Cookie 重放', 'Someone who has read the public source replays the sign-in cookie that /auth/login gives anyone as a session cookie'), LOW, t('2026 年 11 月 3 日渗透测试后已修复。登录 Cookie 和会话 Cookie 现在用不同密钥签名，并带有会被检查的类型；会话必须指明用户。修复前的所有会话都已结束。单元测试会重放登录 Cookie 和其他伪造内容，当天的线上测试也在网站上重放了一次并被拒绝', 'Fixed on 3 November 2026 after a penetration test. Sign-in and session cookies are now signed with different keys and carry a type that is checked; a session must name a user. Every session from before the fix was ended. Unit tests replay the sign-in cookie and other forged payloads, and the live test that day replayed it on the site and was refused')],
     [t('会话 Cookie 被伪造或被盗', 'A session cookie is forged or stolen'), LOW, t('HMAC-SHA256 签名恒定时间比较，12 小时过期，HttpOnly、Secure、SameSite=Lax 和 __Host- 前缀，所以其他 dliu.com 子域无法设置或读取它', 'HMAC-SHA256 signature compared in constant time, 12-hour expiry, HttpOnly, Secure, SameSite=Lax and the __Host- prefix, so other dliu.com subdomains cannot set or read it')],
     [t('登录 CSRF、授权码被截获或开放重定向', 'Login CSRF, code interception or an open redirect'), LOW, t('短期签名 Cookie 中的 state、nonce 和 PKCE（S256）；固定回调地址；校验 ID 令牌的签名、颁发者、租户、受众和有效期；返回地址必须是本站路径', 'state, nonce and PKCE (S256) in a short-lived signed cookie; fixed redirect URI; ID token signature, issuer, tenant, audience and expiry checked; the return address must be a path on this site')],
@@ -352,7 +354,7 @@ function security(root) {
     t('密钥：代码、日志或 git 历史中都没有机密。2026 年 11 月 3 日扫描了已推送的全部历史，只找到占位数字和 AWS 示例密钥（AKIDEXAMPLE）。cdk.out 和 .env 未被跟踪且已在 .gitignore 中。', 'Secrets: none in code, logs or git history. The full pushed history was scanned on 3 November 2026 and only placeholder numbers and the AWS example key (AKIDEXAMPLE) were found. cdk.out and .env are untracked and covered by .gitignore.'),
     t('依赖：npm audit 在生产依赖（--omit=dev）上只报告 aws-cdk-lib 的两个 moderate（minimatch ReDoS），仅用于构建，无可用修复。已部署的 Lambda 不打包 node_modules，只用 Node 22 运行时的 AWS SDK 和 crypto，所以没有有漏洞的包进入生产。', 'Dependencies: npm audit on production dependencies (--omit=dev) reports only two moderate issues in aws-cdk-lib (minimatch ReDoS), build-time only with no fix available. The deployed Lambda bundles no node_modules and uses only the Node 22 runtime’s AWS SDK and crypto, so no vulnerable package reaches production.'),
     t('IAM 最小权限：角色按资源限定；kms:Decrypt 带 ViaService=ssm 条件；一条明确的 Deny 阻止 API 写入 _app/* 和 dliu.com/*；清除函数只能创建失效，不能读写对象。存储桶阻止所有公共访问、加密、仅 HTTPS、启用版本控制。', 'IAM least privilege: roles are scoped by resource; kms:Decrypt carries a ViaService=ssm condition; an explicit Deny stops the API writing _app/* and dliu.com/*; the clear function may only create invalidations, not read or write objects. The bucket blocks all public access, is encrypted, HTTPS-only and versioned.'),
-    t('测试：169 项单元和堆栈测试覆盖了安全路径，包括每个修复（会话重放、保留的 dliu.com/ 前缀、IAM Deny 语句、上传大小核对）。', 'Tests: 169 unit and stack tests cover the security paths, including every fix (session replay, the reserved dliu.com/ prefix, the IAM Deny statement, the upload size check).'),
+    t('测试：171 项单元和堆栈测试覆盖了安全路径，包括每个修复（会话重放、只读的 dliu.com/ 前缀与按入口拆分的 IAM Deny、上传大小核对）。', 'Tests: 171 unit and stack tests cover the security paths, including every fix (session replay, the read-only dliu.com/ prefix with its per-entry-point IAM Deny, the upload size check).'),
   ]));
 
   add('h2', t('接受的剩余风险', 'Accepted residual risks'));
@@ -404,7 +406,7 @@ function security(root) {
 }
 
 // Each article starts with its heading and lead from docs.html (translated by i18n.js); the rest is drawn here.
-const PAGES = { architecture, cost, security };
+const PAGES = { architecture, cost, security, health };
 const kept = Object.fromEntries(TABS.map((id) => [id, document.getElementById(id).children.length]));
 function draw() {
   renderNav();

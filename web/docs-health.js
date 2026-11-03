@@ -1,4 +1,4 @@
-import { el, renderNav, t, onLanguageChange } from './common.js';
+import { el, t } from './common.js';
 import { flow, table, more, callout } from './diagram.js';
 
 const SITE = 'https://files.dliu.com';
@@ -7,10 +7,6 @@ const mono = (text) => ({ text, className: 'mono' });
 // Function keys, kept in sync with /docs/health.md and the /health endpoint (test/health.test.js guards this).
 export const GUEST_FUNCTIONS = ['pages', 'shared-ui', 'listing', 'signin', 'api', 'health'];
 export const HEALTH_FUNCTIONS = ['storage', 'signin'];
-
-function lead(text) {
-  return el('p', { class: 'lead' }, text);
-}
 
 // How the site is tested, for people: status.dliu.com as a guest -> public URLs -> /health -> dependencies -> result.
 function diagram() {
@@ -105,15 +101,9 @@ function healthEndpointDetails() {
     el('pre', { class: 'code' }, example));
 }
 
-function render() {
-  renderNav();
-  document.title = `${t('测试', 'Testing')} · ${t('文档', 'Docs')} · ${t('文件', 'Files')} · dliu.com`;
-  const root = document.getElementById('health');
-  if (!root) return;
-  root.replaceChildren(
-    el('h2', {}, t('如何测试本站', 'How this site is tested')),
-    lead(t('status.dliu.com 以匿名访客的身份每 15 分钟检查一次 files.dliu.com：它只请求公开网址，从不登录。本页说明它检查什么，以及某项“宕机”对访客意味着什么。',
-      'status.dliu.com checks files.dliu.com every 15 minutes as an anonymous guest: it only requests public URLs and never signs in. This page explains what it checks and what "down" means for a visitor.')),
+// The Testing tab's body. The heading and lead come from docs.html; this appends the rest to the article.
+export function health(root) {
+  root.append(
     diagram(),
     legend(),
     el('h2', {}, t('检查的功能', 'Functions that are checked')),
@@ -127,6 +117,3 @@ function render() {
       el('a', { href: '/docs/health.md' }, t('完整技术版本（Markdown）', 'Full technical version (Markdown)'))),
   );
 }
-
-render();
-onLanguageChange(render);
