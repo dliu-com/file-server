@@ -204,7 +204,7 @@ function cost(root) {
     [t('CDN 清除', 'CDN clearing'), t('每个被替换或删除的文件约一两条路径；每月前 1,000 条免费，之后每条 $0.005', 'About one or two paths per replaced or deleted file; the first 1,000 paths a month are free, then $0.005 per path'), num('$0')],
     [t('API Gateway HTTP API（可选）', 'API Gateway HTTP API (optional)'), t('每百万次托管 API 调用约 $1；无固定月费。下载不使用它', 'About $1 per million managed API calls; no fixed monthly fee. Downloads do not use it'), num('$0')],
     [t('Parameter Store 和 KMS', 'Parameter Store and KMS'), t('标准参数免费；AWS 托管的 aws/ssm 密钥每月有 20,000 次免费请求', 'Standard parameters are free; the AWS-managed aws/ssm key has 20,000 free requests a month'), num('$0')],
-    ['CloudWatch Logs', t('Lambda 日志保留一个月；每 GB $0.57，每月几 KB', 'Lambda logs kept one month; $0.57 per GB, a few KB a month'), num('$0')],
+    ['CloudWatch Logs', t('Lambda 日志保留三个月；每 GB $0.57，每月几 KB', 'Lambda logs kept three months; $0.57 per GB, a few KB a month'), num('$0')],
     [t('证书（ACM）和 DNS', 'Certificate (ACM) and DNS'), t('公共证书免费；指向 CloudFront 的别名记录在现有 dliu.com 区域中免费解析', 'Public certificates are free; alias records to CloudFront answer free in the existing dliu.com zone'), num('$0')],
     [t('流量日志', 'Traffic logs'), t('计入流量监控：每 GB 日志行 $0.25', 'Billed to the traffic monitor: $0.25 per GB of log lines'), num('< $0.01')],
   ]));
@@ -352,7 +352,7 @@ function security(root) {
     t('密钥：代码、日志或 git 历史中都没有机密。2026 年 11 月 3 日扫描了已推送的全部历史，只找到占位数字和 AWS 示例密钥（AKIDEXAMPLE）。cdk.out 和 .env 未被跟踪且已在 .gitignore 中。', 'Secrets: none in code, logs or git history. The full pushed history was scanned on 3 November 2026 and only placeholder numbers and the AWS example key (AKIDEXAMPLE) were found. cdk.out and .env are untracked and covered by .gitignore.'),
     t('依赖：npm audit 在生产依赖（--omit=dev）上只报告 aws-cdk-lib 的两个 moderate（minimatch ReDoS），仅用于构建，无可用修复。已部署的 Lambda 不打包 node_modules，只用 Node 22 运行时的 AWS SDK 和 crypto，所以没有有漏洞的包进入生产。', 'Dependencies: npm audit on production dependencies (--omit=dev) reports only two moderate issues in aws-cdk-lib (minimatch ReDoS), build-time only with no fix available. The deployed Lambda bundles no node_modules and uses only the Node 22 runtime’s AWS SDK and crypto, so no vulnerable package reaches production.'),
     t('IAM 最小权限：角色按资源限定；kms:Decrypt 带 ViaService=ssm 条件；一条明确的 Deny 阻止 API 写入 _app/* 和 dliu.com/*；清除函数只能创建失效，不能读写对象。存储桶阻止所有公共访问、加密、仅 HTTPS、启用版本控制。', 'IAM least privilege: roles are scoped by resource; kms:Decrypt carries a ViaService=ssm condition; an explicit Deny stops the API writing _app/* and dliu.com/*; the clear function may only create invalidations, not read or write objects. The bucket blocks all public access, is encrypted, HTTPS-only and versioned.'),
-    t('测试：152 项单元和堆栈测试覆盖了安全路径，包括每个修复（会话重放、保留的 dliu.com/ 前缀、IAM Deny 语句、上传大小核对）。', 'Tests: 152 unit and stack tests cover the security paths, including every fix (session replay, the reserved dliu.com/ prefix, the IAM Deny statement, the upload size check).'),
+    t('测试：154 项单元和堆栈测试覆盖了安全路径，包括每个修复（会话重放、保留的 dliu.com/ 前缀、IAM Deny 语句、上传大小核对）。', 'Tests: 154 unit and stack tests cover the security paths, including every fix (session replay, the reserved dliu.com/ prefix, the IAM Deny statement, the upload size check).'),
   ]));
 
   add('h2', t('接受的剩余风险', 'Accepted residual risks'));

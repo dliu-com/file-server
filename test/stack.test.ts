@@ -92,6 +92,11 @@ test('the API Lambda is invoked only through CloudFront and can invalidate it', 
   });
 });
 
+test('Lambda log groups keep three months, matching the account-wide standard', () => {
+  template.resourcePropertiesCountIs('AWS::Logs::LogGroup', { RetentionInDays: 90 }, 2);
+  template.resourcePropertiesCountIs('AWS::Logs::LogGroup', { RetentionInDays: 30 }, 0);
+});
+
 test('files replaced or deleted in S3 by any route are cleared from CloudFront', () => {
   template.hasResourceProperties('Custom::S3BucketNotifications', {
     NotificationConfiguration: { EventBridgeConfiguration: {} },

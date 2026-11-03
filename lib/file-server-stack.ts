@@ -108,7 +108,7 @@ export class FileServerStack extends Stack {
         MAX_UPLOAD_BYTES: String(props.maxUploadBytes),
       },
       logGroup: new logs.LogGroup(this, 'ApiLogs', {
-        retention: logs.RetentionDays.ONE_MONTH,
+        retention: logs.RetentionDays.THREE_MONTHS,
         removalPolicy: RemovalPolicy.DESTROY,
       }),
     });
@@ -325,7 +325,7 @@ export class FileServerStack extends Stack {
       description: 'files.dliu.com: clears CloudFront copies of files replaced or deleted in S3',
       environment: { FILE_BUCKET: fileBucket.bucketName, DISTRIBUTION_ID: distribution.distributionId },
       logGroup: new logs.LogGroup(this, 'ClearLogs', {
-        retention: logs.RetentionDays.ONE_MONTH,
+        retention: logs.RetentionDays.THREE_MONTHS,
         removalPolicy: RemovalPolicy.DESTROY,
       }),
     });
