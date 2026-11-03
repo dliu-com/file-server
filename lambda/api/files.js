@@ -26,7 +26,7 @@ class Conflict extends Error {}
  * A file or folder path without leading or trailing slashes, e.g. "me/videos/graduation.mp4".
  * Segments may hold any printable characters except / \ ? # %, which would make URLs ambiguous.
  */
-function cleanPath(value, name = 'path') {
+function cleanPath(value, name = 'path', { allowShared = false } = {}) {
   if (typeof value !== 'string') throw new BadRequest(`${name} is required`);
   const path = value.normalize('NFC').trim().replace(/^\/+|\/+$/g, '');
   if (!path) throw new BadRequest(`${name} is required`);
@@ -40,6 +40,8 @@ function cleanPath(value, name = 'path') {
     if (/[\u0000-\u001F\u007F\\?#%]/.test(segment)) throw new BadRequest(`${name} cannot contain \\ ? # % or control characters`);
   }
   if (store.RESERVED.has(segments[0])) throw new BadRequest(`"${segments[0]}" is reserved for the site; choose another top-level name`);
+  // The shared dliu.com/ assets every site loads are view-only here: only the managed API may change them.
+  if (store.SHARED.has(segments[0]) && !allowShared) throw new BadRequest(`"${segments[0]}/" is view-only; it can only be changed through the managed API`);
   if (path === 'index.html') throw new BadRequest('"index.html" at the top level is reserved for the site');
   if (store.RESERVED_PATHS.has(path)) throw new BadRequest(`"${path}" is reserved for the site's documentation`);
   return path;
@@ -100,7 +102,7 @@ async function mapLimit(items, limit, fn) {
   return results;
 }
 
-function createFiles({ s3, bucket, region, maxBytes, tokenKey, now = Date.now, invalidate = async () => {} }) {
+function createFiles({ s3, bucket, region, maxBytes, tokenKey, now = Date.now, invalidate = async () => {}, allowShared = false }) {
   const sdk = () => require('@aws-sdk/client-s3');
   const presign = (key, query) => presignUrl({ method: 'PUT', bucket, region, key, query, expiresIn: URL_SECONDS, now: now() });
   const seconds = () => Math.floor(now() / 1000);
@@ -162,7 +164,7 @@ function createFiles({ s3, bucket, region, maxBytes, tokenKey, now = Date.now, i
 
   return {
     async createUpload(body) {
-      const path = cleanPath(body.path);
+      const path = cleanPath(body.path, 'path', { allowShared });
       const bytes = size(body.size, maxBytes);
       const type = contentType(body.contentType);
       const listing = await store.readListing(s3, bucket);
@@ -255,8 +257,8 @@ function createFiles({ s3, bucket, region, maxBytes, tokenKey, now = Date.now, i
 
     /** Moves or renames a file, or a folder and everything in it. */
     async move(body) {
-      const from = cleanPath(body.from, 'from');
-      const to = cleanPath(body.to, 'to');
+      const from = cleanPath(body.from, 'from', { allowShared });
+      const to = cleanPath(body.to, 'to', { allowShared });
       if (from === to) throw new BadRequest('The new path is the same as the old one');
       if (isUnder(to, from)) throw new BadRequest('A folder cannot be moved into itself');
 
@@ -298,7 +300,7 @@ function createFiles({ s3, bucket, region, maxBytes, tokenKey, now = Date.now, i
 
     /** Deletes a file, or a folder and everything in it. */
     async remove(body) {
-      const path = cleanPath(body.path);
+      const path = cleanPath(body.path, 'path', { allowShared });
       let removed = [];
       let isFile = false;
       await store.updateListing(s3, bucket, (listing) => {

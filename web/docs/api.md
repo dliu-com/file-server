@@ -77,6 +77,7 @@ A path is the file's location without leading or trailing slashes, such as `me/r
 | Names | Each `/`-separated name is 1 to 255 characters, with no leading/trailing spaces, not `.` or `..`, and without `\`, `?`, `#`, `%` or control characters |
 | Length | At most 1,024 UTF-8 bytes |
 | Reserved | Top-level `_app`, `_data`, `api`, `auth` and `index.html`, and the exact paths `docs/api` and `docs/api.md` |
+| Shared | Top-level `dliu.com` holds the files every dliu.com site loads; it is read-only to the website and writable **only** through this managed API |
 | Clashes | A file cannot have the same path as a folder, or sit under a path that is a file |
 
 The listing uses this complete file object:
@@ -344,7 +345,7 @@ This Bash example uploads an explicitly authorized local file to an explicitly c
 
 ## dliu.com shared resources
 
-This site also hosts the files every dliu.com site shares, under `/dliu.com/`: the shared look (`ui/v1/dl.css`, `ui/v1/dl-docs.css`) and the DL logo. They are published from the shared-resources repository, not through this API; do not upload, move or delete anything under `dliu.com/`.
+This site also hosts the files every dliu.com site shares, under `/dliu.com/`: the shared look (`ui/v1/dl.css`, `ui/v1/dl-docs.css`) and the DL logo. The Files website treats `dliu.com/` as read-only: signed-in website sessions cannot upload, replace, move or delete anything under it. It is writable **only** through this managed API (a token with the `files.write` / `files.delete` scopes), which is how the shared-resources repository publishes updates and keeps the listing (`_data/files.json`) accurate.
 
 The [shared resources guide](https://files.dliu.com/dliu.com/README.md) explains how a site uses them, including the page markup, the Content-Security-Policy additions and the optional traffic monitoring page script (`https://traffic.dliu.com/t/s.js`), which stays on traffic.dliu.com.
 

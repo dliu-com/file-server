@@ -87,52 +87,67 @@ export class FileServerStack extends Stack {
       ],
     });
 
-    // ---------- API (sign-in and owner actions only; visitors never call it) ----------
-    const api = new lambda.Function(this, 'ApiHandler', {
-      runtime: lambda.Runtime.NODEJS_22_X,
-      architecture: lambda.Architecture.ARM_64,
-      handler: 'index.handler',
-      code: lambda.Code.fromAsset(path.join(ROOT, 'lambda/api')),
-      // Moving a large folder copies every file inside S3.
-      timeout: Duration.seconds(60),
-      memorySize: 256,
-      // A denial-of-wallet cap: a single owner never needs more, and it bounds Lambda spend if the API
-      // is ever flooded (matches the other dliu.com sites).
-      reservedConcurrentExecutions: 10,
-      description: 'files.dliu.com sign-in (Microsoft Entra) and upload/move/delete API',
-      environment: {
-        SITE_URL: siteUrl,
-        ROOT_DOMAIN: rootDomain,
-        PARAMETER_PREFIX,
-        FILE_BUCKET: fileBucket.bucketName,
-        MAX_UPLOAD_BYTES: String(props.maxUploadBytes),
-      },
-      logGroup: new logs.LogGroup(this, 'ApiLogs', {
-        retention: logs.RetentionDays.THREE_MONTHS,
-        removalPolicy: RemovalPolicy.DESTROY,
-      }),
-    });
-    fileBucket.grantReadWrite(api);
-    fileBucket.grantDelete(api);
-    // Backstop to cleanPath: the API role must never change the site's own code (_app/) or the shared
-    // dliu.com/ assets that every dliu.com site loads, even if a path check is ever bypassed. An explicit
-    // Deny wins over the grants above. Reads stay allowed, and _data/ (the listing) is not under these
-    // prefixes. Deploys use the BucketDeployment role, and dliu.com/ is published out of band, so neither
-    // is affected.
-    api.addToRolePolicy(new iam.PolicyStatement({
-      effect: iam.Effect.DENY,
-      actions: ['s3:PutObject', 's3:DeleteObject', 's3:AbortMultipartUpload'],
-      resources: [fileBucket.arnForObjects('_app/*'), fileBucket.arnForObjects('dliu.com/*')],
-    }));
-    api.addToRolePolicy(new iam.PolicyStatement({
-      actions: ['ssm:GetParameters'],
-      resources: [this.formatArn({ service: 'ssm', resource: 'parameter', resourceName: PARAMETER_PREFIX.slice(1) + '/*' })],
-    }));
-    api.addToRolePolicy(new iam.PolicyStatement({
-      actions: ['kms:Decrypt'],
-      resources: ['*'],
-      conditions: { StringEquals: { 'kms:ViaService': `ssm.${this.region}.amazonaws.com` } },
-    }));
+    // ---------- API Lambdas ----------
+    // Two functions run the same code (lambda/api) with different IAM roles, so the write-protection for the
+    // shared dliu.com/ assets can differ by entry point:
+    //   - the website function (Function URL, cookie sign-in) is denied writing dliu.com/* as well as _app/*;
+    //   - the managed-API function (auth.dliu.com Microsoft tokens) may write dliu.com/* so the listing stays
+    //     accurate, but is still denied _app/*.
+    // cleanPath enforces the same split in code (store.SHARED, allowShared); the IAM Deny is the backstop.
+    const apiCode = lambda.Code.fromAsset(path.join(ROOT, 'lambda/api'));
+    const baseEnv: Record<string, string> = {
+      SITE_URL: siteUrl,
+      ROOT_DOMAIN: rootDomain,
+      PARAMETER_PREFIX,
+      FILE_BUCKET: fileBucket.bucketName,
+      MAX_UPLOAD_BYTES: String(props.maxUploadBytes),
+    };
+    const makeApi = (id: string, logsId: string, description: string, denyShared: boolean, extraEnv: Record<string, string> = {}) => {
+      const fn = new lambda.Function(this, id, {
+        runtime: lambda.Runtime.NODEJS_22_X,
+        architecture: lambda.Architecture.ARM_64,
+        handler: 'index.handler',
+        code: apiCode,
+        // Moving a large folder copies every file inside S3.
+        timeout: Duration.seconds(60),
+        memorySize: 256,
+        // A denial-of-wallet cap: bounds Lambda spend if the entry point is ever flooded (matches the other
+        // dliu.com sites). The managed API is also throttled at the gateway.
+        reservedConcurrentExecutions: 10,
+        description,
+        environment: { ...baseEnv, ...extraEnv },
+        logGroup: new logs.LogGroup(this, logsId, {
+          retention: logs.RetentionDays.THREE_MONTHS,
+          removalPolicy: RemovalPolicy.DESTROY,
+        }),
+      });
+      fileBucket.grantReadWrite(fn);
+      fileBucket.grantDelete(fn);
+      // Backstop to cleanPath: the role must never change the site's own code (_app/). The website role is also
+      // denied the shared dliu.com/ assets every dliu.com site loads; the managed-API role may write them so the
+      // listing (_data/, not under these prefixes) stays accurate. An explicit Deny wins over the grants above.
+      const denied = [fileBucket.arnForObjects('_app/*')];
+      if (denyShared) denied.push(fileBucket.arnForObjects('dliu.com/*'));
+      fn.addToRolePolicy(new iam.PolicyStatement({
+        effect: iam.Effect.DENY,
+        actions: ['s3:PutObject', 's3:DeleteObject', 's3:AbortMultipartUpload'],
+        resources: denied,
+      }));
+      fn.addToRolePolicy(new iam.PolicyStatement({
+        actions: ['ssm:GetParameters'],
+        resources: [this.formatArn({ service: 'ssm', resource: 'parameter', resourceName: PARAMETER_PREFIX.slice(1) + '/*' })],
+      }));
+      fn.addToRolePolicy(new iam.PolicyStatement({
+        actions: ['kms:Decrypt'],
+        resources: ['*'],
+        conditions: { StringEquals: { 'kms:ViaService': `ssm.${this.region}.amazonaws.com` } },
+      }));
+      return fn;
+    };
+
+    // Website: sign-in and owner actions only; visitors never call it. Denied dliu.com/* (view-only here).
+    const api = makeApi('ApiHandler', 'ApiLogs',
+      'files.dliu.com sign-in (Microsoft Entra) and website upload/move/delete API', true);
     const functionUrl = api.addFunctionUrl({ authType: lambda.FunctionUrlAuthType.AWS_IAM });
 
     // ---------- Managed API (Microsoft access tokens for tools and agents; separate from website sign-in) ----------
@@ -147,9 +162,19 @@ export class FileServerStack extends Stack {
       const httpApi = new apigateway.HttpApi(this, 'MicrosoftApi', {
         description: 'Files API: Microsoft Entra access tokens, delegated permissions and assigned users',
       });
+      // A separate function and role for the managed API: it may write the shared dliu.com/ assets (so the
+      // listing stays accurate) while the website function above keeps its dliu.com/* Deny. Both are still
+      // denied _app/*. This handler never serves the website's Function URL, cookie sign-in or /health.
+      const managedApi = makeApi('ManagedApiHandler', 'ManagedApiLogs',
+        'files.dliu.com managed API (auth.dliu.com Microsoft tokens): upload/move/delete, including dliu.com/', false, {
+          API_GATEWAY_ID: httpApi.apiId,
+          API_TENANT_ID: tenantId,
+          API_AUDIENCE: audience,
+          API_CLIENT_ID: clientId,
+        });
       const authorizer = new authorizers.HttpJwtAuthorizer('MicrosoftJwt',
         Fn.join('', ['https://login.microsoftonline.com/', tenantId, '/v2.0']), { jwtAudience: [audience] });
-      const integration = new integrations.HttpLambdaIntegration('FilesApi', api);
+      const integration = new integrations.HttpLambdaIntegration('FilesApi', managedApi);
       for (const [route, permission] of Object.entries(apiRoutes)) {
         const [method, routePath] = route.split(' ');
         httpApi.addRoutes({
@@ -160,10 +185,6 @@ export class FileServerStack extends Stack {
           authorizationScopes: [permission.scope],
         });
       }
-      api.addEnvironment('API_GATEWAY_ID', httpApi.apiId);
-      api.addEnvironment('API_TENANT_ID', tenantId);
-      api.addEnvironment('API_AUDIENCE', audience);
-      api.addEnvironment('API_CLIENT_ID', clientId);
       // Throttle the managed API so a stolen or misused token cannot drive unbounded cost (matches the
       // other dliu.com sites). Legitimate tool and agent use stays well under this.
       const defaultStage = httpApi.defaultStage!.node.defaultChild as apigateway.CfnStage;

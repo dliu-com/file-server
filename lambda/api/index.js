@@ -139,7 +139,7 @@ function createHandler(deps = {}) {
   const fetchImpl = deps.fetchImpl || ((...args) => fetch(...args));
   const clock = deps.now || Date.now;
 
-  async function respond(route, path, event, session, config) {
+  async function respond(route, path, event, session, config, managedApi = false) {
     if (!route) return json(404, { error: 'Not found' });
     if (path === '/api/me') return json(200, { user: session.user, name: session.name });
     if (path === '/api/files') {
@@ -154,6 +154,8 @@ function createHandler(deps = {}) {
       tokenKey: config ? auth.uploadKey(config) : null,
       now: clock,
       invalidate: deps.invalidate || invalidateWithCloudFront,
+      // Only the managed API (auth.dliu.com token) may write the shared dliu.com/ assets; website sessions cannot.
+      allowShared: managedApi,
     });
     return json(200, await files[route.action](parseBody(event)));
   }
@@ -181,7 +183,7 @@ function createHandler(deps = {}) {
         const session = apiAccess.authorize(event, route.scope);
         if (session.status) return json(session.status, { error: session.error });
         const config = UPLOAD_ACTIONS.has(route.action) ? await getConfig() : null;
-        return await respond(route, path, event, session, config);
+        return await respond(route, path, event, session, config, true);
       }
 
       const config = await getConfig();

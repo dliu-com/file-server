@@ -139,7 +139,7 @@ test('files replaced or deleted in S3 by any route are cleared from CloudFront',
   expect(policies).not.toContain('s3:DeleteObject');
 });
 
-test('the API role is denied writing the site code and shared dliu.com assets', () => {
+test('the website role is denied writing the site code and the shared dliu.com assets', () => {
   template.hasResourceProperties('AWS::IAM::Policy', {
     PolicyDocument: {
       Statement: Match.arrayWith([
@@ -154,6 +154,31 @@ test('the API role is denied writing the site code and shared dliu.com assets', 
       ]),
     },
   });
+});
+
+test('the managed-API role may write dliu.com/ (its own function and role) but is still denied _app/', () => {
+  const enabled = Template.fromStack(new FileServerStack(new App(), 'FileServerSplit', {
+    subdomain: 'files', frameAncestors: ['https://dliu.com'], maxUploadBytes: 50 * 1024 ** 3,
+    microsoftApi: true, env: { account: '123456789012', region: 'eu-west-1' },
+  }));
+  // The managed API runs on its own function, so the website function keeps its dliu.com/* Deny.
+  const descriptions = Object.values(enabled.findResources('AWS::Lambda::Function'))
+    .map((fn: any) => fn.Properties.Description).filter(Boolean);
+  expect(descriptions.some((d: string) => d.includes('managed API'))).toBe(true);
+  // Collect every PutObject Deny statement across all roles.
+  const denies: any[] = [];
+  for (const policy of Object.values(enabled.findResources('AWS::IAM::Policy')) as any[]) {
+    for (const statement of policy.Properties.PolicyDocument.Statement) {
+      if (statement.Effect === 'Deny' && Array.isArray(statement.Action) && statement.Action.includes('s3:PutObject')) {
+        denies.push(JSON.stringify(statement.Resource));
+      }
+    }
+  }
+  // Two roles deny _app/*; exactly one of them also denies dliu.com/* (the website), and one does not (managed).
+  const denyApp = denies.filter((r) => r.includes('_app/*'));
+  expect(denyApp.length).toBe(2);
+  expect(denyApp.filter((r) => r.includes('dliu.com/*')).length).toBe(1);
+  expect(denyApp.filter((r) => !r.includes('dliu.com/*')).length).toBe(1);
 });
 
 test('files are cached at the edge worldwide over HTTP/3', () => {

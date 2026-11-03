@@ -116,7 +116,7 @@ describe('API', () => {
     [{ path: 'a/b\u0007.txt', size: 10 }, 'control characters'],
     [{ path: '_app/app.js', size: 10 }, 'reserved'],
     [{ path: 'api/x', size: 10 }, 'reserved'],
-    [{ path: 'dliu.com/ui/v1/dl.css', size: 10 }, 'reserved'],
+    [{ path: 'dliu.com/ui/v1/dl.css', size: 10 }, 'view-only'],
     [{ path: 'index.html', size: 10 }, 'reserved'],
     [{ path: 'docs', size: 10 }, 'reserved'],
     [{ path: 'docs/api', size: 10 }, 'reserved'],

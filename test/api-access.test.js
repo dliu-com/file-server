@@ -228,6 +228,31 @@ test('a bearer client can upload, list, move and delete without Origin or cookie
   expect(loadConfig).toHaveBeenCalledTimes(5);
 });
 
+test('the managed API may write, move and delete the shared dliu.com/ assets', async () => {
+  const { call, s3 } = setup();
+  s3.completedSize = 9;
+  // Upload a shared asset the website cannot touch.
+  const started = await call('POST', '/api/uploads', ['files.write'], { path: 'dliu.com/ui/v1/dl.css', size: 9, contentType: 'text/css' });
+  expect(started.statusCode).toBe(200);
+  expect(started.json).toMatchObject({ path: 'dliu.com/ui/v1/dl.css', replacing: false });
+  const done = await call('POST', '/api/uploads/complete', ['files.write'],
+    { token: started.json.token, parts: [{ partNumber: 1, etag: `"${'a'.repeat(32)}"` }] });
+  expect(done.json.file.path).toBe('dliu.com/ui/v1/dl.css');
+  // Move and delete under dliu.com/ also work for the managed API.
+  const moved = await call('POST', '/api/files/move', ['files.write'], { from: 'dliu.com/ui/v1/dl.css', to: 'dliu.com/ui/v1/dl2.css' });
+  expect(moved.json).toEqual({ moved: [{ from: 'dliu.com/ui/v1/dl.css', to: 'dliu.com/ui/v1/dl2.css' }] });
+  expect((await call('POST', '/api/files/delete', ['files.delete'], { path: 'dliu.com/ui/v1/dl2.css' })).json)
+    .toEqual({ deleted: ['dliu.com/ui/v1/dl2.css'] });
+});
+
+test('the managed API still cannot write the site code or docs paths', async () => {
+  const { call } = setup();
+  for (const path of ['_app/app.js', '_data/files.json', 'api/x', 'auth/x', 'index.html', 'docs/api']) {
+    const result = await call('POST', '/api/uploads', ['files.write'], { path, size: 1, contentType: 'text/plain' });
+    expect(result.statusCode).toBe(400);
+  }
+});
+
 test('reads, moves and deletes never load website configuration', async () => {
   const s3 = createFakeS3();
   const loadConfig = jest.fn(() => { throw new Error('Must not load website configuration'); });

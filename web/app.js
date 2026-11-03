@@ -17,6 +17,10 @@ const ICONS = [
 ];
 
 const owner = isOwner();
+// dliu.com/ holds the shared assets every site loads. Website sessions see it read-only;
+// it can only be changed through the managed API (auth.dliu.com token). See /docs/api.
+const SHARED_PREFIX = 'dliu.com';
+const isShared = (path) => path === SHARED_PREFIX || path.startsWith(`${SHARED_PREFIX}/`);
 let listing = { files: [] };
 let folder = '';
 let current = null; // the upload in progress: { cancelled, xhrs }
@@ -88,9 +92,7 @@ function actionsFor(item, isFolder) {
   const link = location.origin + (isFolder ? folderUrl(item.path) : urlPath(item.path));
   const buttons = [el('button', { type: 'button', class: 'dl-button dl-button-small', onclick: () => copyText(link) }, t('复制链接', 'Copy link'))];
   if (!isFolder) buttons.push(el('a', { class: 'dl-button dl-button-small', href: urlPath(item.path), download: name(item.path) }, t('下载', 'Download')));
-  if (owner) {
-    buttons.push(
-      el('button', { type: 'button', class: 'dl-button dl-button-small', onclick: () => move(item.path) }, t('移动', 'Move')),
+  if (owner && !isShared(item.path)) {
       el('button', { type: 'button', class: 'dl-button dl-button-small dl-button-danger', onclick: () => remove(item.path, isFolder ? item.count : 0) }, t('删除', 'Delete')),
     );
   }
@@ -121,7 +123,8 @@ function render() {
   else if (query) setStatus(t('没有符合搜索的内容。', 'Nothing matches your search.'));
   else if (!folder) setStatus(owner ? t('还没有文件。上传一些，或把文件拖到这里。', 'No files yet. Upload some, or drop them here.') : t('还没有文件。', 'No files yet.'));
   else setStatus(owner ? t('此文件夹是空的。上传文件即可保留它；空文件夹不会保存。', 'This folder is empty. Upload files to keep it; empty folders are not saved.') : t('此文件夹不存在。', 'This folder does not exist.'));
-  $('drop-hint').hidden = !owner;
+  if (owner) $('owner-actions').hidden = isShared(folder);
+  $('drop-hint').hidden = !owner || isShared(folder);
 }
 
 /** Shows the address bar's folder. A URL without the trailing slash may be a folder (redirect) or a missing file. */
@@ -317,6 +320,10 @@ const warnLeave = (event) => { event.preventDefault(); event.returnValue = ''; }
 
 /** Uploads [{ file, relative }] into the current folder, one file at a time. */
 async function uploadAll(items) {
+  if (isShared(folder)) {
+    toast(t('dliu.com/ 为只读；请通过托管 API 更改。', 'dliu.com/ is read-only; change it through the managed API.'));
+    return;
+  }
   if (current) {
     toast(t('请等待当前上传完成', 'Wait for the current upload to finish'));
     return;
@@ -428,7 +435,7 @@ window.addEventListener('popstate', () => { $('search').value = ''; route(); });
 $('search').addEventListener('input', render);
 
 if (owner) {
-  $('owner-actions').hidden = false;
+  $('owner-actions').hidden = isShared(folder);
   $('upload-files').addEventListener('click', () => $('file-input').click());
   $('upload-folder').addEventListener('click', () => $('folder-input').click());
   $('new-folder').addEventListener('click', newFolder);
