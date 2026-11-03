@@ -353,3 +353,63 @@ describe('API', () => {
     expect(result.body).not.toContain('href="/docs/api"');
   });
 });
+
+describe('GET /health (public liveness for status.dliu.com)', () => {
+  const callHealth = (handler, method = 'GET', extra = {}) => handler({
+    rawPath: '/health',
+    requestContext: { http: { method } },
+    ...extra,
+  }).then((r) => ({ ...r, json: r.body ? JSON.parse(r.body) : undefined }));
+
+  test('is public and reports each dependency as application/health+json', async () => {
+    const s3 = createFakeS3();
+    const handler = createHandler({ loadConfig: async () => config, s3, now: () => NOW });
+    // No cookies, no Authorization header, no query string are sent or read.
+    const r = await callHealth(handler);
+    expect(r.statusCode).toBe(200);
+    expect(r.headers['content-type']).toBe('application/health+json');
+    expect(r.headers['cache-control']).toBe('max-age=60');
+    expect(r.json.status).toBe('pass');
+    expect(typeof r.json.time).toBe('string');
+    expect(r.json.functions.map((f) => f.key)).toEqual(['storage', 'signin']);
+    expect(r.json.functions.every((f) => f.status === 'pass')).toBe(true);
+    // Read only: no write or list ran against S3.
+    const names = s3.calls.map((c) => c.name);
+    expect(names).toContain('HeadObjectCommand');
+    for (const forbidden of ['PutObjectCommand', 'DeleteObjectCommand', 'ListObjectsV2Command']) {
+      expect(names).not.toContain(forbidden);
+    }
+  });
+
+  test('returns 503 with a generic reason when a dependency is down', async () => {
+    const s3 = createFakeS3();
+    const handler = createHandler({ loadConfig: async () => { throw new Error('ssm failed for secret /files/entra-client-secret'); }, s3, now: () => NOW });
+    const r = await callHealth(handler);
+    expect(r.statusCode).toBe(503);
+    expect(r.json.status).toBe('fail');
+    const signin = r.json.functions.find((f) => f.key === 'signin');
+    expect(signin.status).toBe('fail');
+    expect(signin.output).toBe('read failed');
+    expect(JSON.stringify(r.json)).not.toContain('secret');
+    expect(JSON.stringify(r.json)).not.toContain('/files/');
+  });
+
+  test('ignores any cookie, Authorization header or query string the caller sends', async () => {
+    const s3 = createFakeS3();
+    const handler = createHandler({ loadConfig: async () => config, s3, now: () => NOW });
+    const r = await callHealth(handler, 'GET', {
+      cookies: [`${auth.SESSION_COOKIE}=forged`],
+      headers: { authorization: 'Bearer forged', cookie: 'x=y' },
+      queryStringParameters: { fail: '1' },
+    });
+    expect(r.statusCode).toBe(200);
+    expect(r.json.status).toBe('pass');
+  });
+
+  test('HEAD /health is allowed', async () => {
+    const s3 = createFakeS3();
+    const handler = createHandler({ loadConfig: async () => config, s3, now: () => NOW });
+    const r = await callHealth(handler, 'HEAD');
+    expect(r.statusCode).toBe(200);
+  });
+});

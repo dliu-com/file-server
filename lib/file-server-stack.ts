@@ -243,13 +243,36 @@ export class FileServerStack extends Stack {
       enableAcceptEncodingGzip: true,
       enableAcceptEncodingBrotli: true,
     });
+    // /health is public and read only. Cache it 60s and forward no cookies, Authorization header or query string to
+    // the origin, so the check cannot be influenced by the caller and the Lambda runs at most about once a minute.
+    const healthCache = new cloudfront.CachePolicy(this, 'HealthCache', {
+      comment: 'files.dliu.com /health: cache 60s, key on nothing',
+      minTtl: Duration.seconds(0),
+      defaultTtl: Duration.seconds(60),
+      maxTtl: Duration.seconds(60),
+      cookieBehavior: cloudfront.CacheCookieBehavior.none(),
+      headerBehavior: cloudfront.CacheHeaderBehavior.none(),
+      queryStringBehavior: cloudfront.CacheQueryStringBehavior.none(),
+      enableAcceptEncodingGzip: true,
+      enableAcceptEncodingBrotli: true,
+    });
+    const functionOrigin = origins.FunctionUrlOrigin.withOriginAccessControl(functionUrl, { readTimeout: Duration.seconds(60) });
     const apiBehavior: cloudfront.BehaviorOptions = {
-      origin: origins.FunctionUrlOrigin.withOriginAccessControl(functionUrl, { readTimeout: Duration.seconds(60) }),
+      origin: functionOrigin,
       allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
       viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
       cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
       originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
       responseHeadersPolicy: headers,
+    };
+    // No origin request policy: CloudFront forwards no cookies, Authorization header or query string to the origin.
+    const healthBehavior: cloudfront.BehaviorOptions = {
+      origin: functionOrigin,
+      allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+      viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+      cachePolicy: healthCache,
+      responseHeadersPolicy: headers,
+      compress: true,
     };
 
     const distribution = new cloudfront.Distribution(this, 'FileServerDistribution', {
@@ -268,6 +291,7 @@ export class FileServerStack extends Stack {
         '_data/*': { ...staticBehavior, cachePolicy: dataCache },
         'api/*': { ...apiBehavior, allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL },
         'auth/*': apiBehavior,
+        'health': healthBehavior,
       },
       // Missing files and folder URLs without the trailing slash get the file browser, which shows
       // "not found" or opens the folder.

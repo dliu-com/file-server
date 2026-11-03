@@ -52,7 +52,7 @@ Other dliu.com sites load files from here, so files are cached close to visitors
 
 ### Reserved names
 
-These top-level names belong to the site and cannot be used for files or folders: `_app`, `_data`, `api`, `auth` and `index.html`. The exact paths `docs`, `docs/api` and `docs/api.md` are the docs pages, so no file can use them (a `docs/` folder and other files under it are fine). Names may contain spaces, Unicode and most punctuation, but not `\ ? # %` or control characters.
+These top-level names belong to the site and cannot be used for files or folders: `_app`, `_data`, `api`, `auth` and `index.html`. The exact paths `docs`, `docs/api`, `docs/api.md`, `docs/health` and `docs/health.md` are the docs pages, so no file can use them (a `docs/` folder and other files under it are fine). Names may contain spaces, Unicode and most punctuation, but not `\ ? # %` or control characters.
 
 ### Costs
 
@@ -161,6 +161,13 @@ The old version served a static bucket that was synced from this repo, with Jenk
 - Deploying keeps the CloudFront distribution (and its ID, which traffic-monitor uses), the certificate and the DNS records.
 - The old bucket is removed from the stack but **retained**, with its files, as a backup. Delete it in the S3 console once you no longer need it.
 - Re-upload the old files with **Upload folder** or drag and drop, keeping their paths so existing links keep working. Other dliu.com sites link to `https://files.dliu.com/dliu.com/favicon.png`.
+
+## Public health check
+
+[status.dliu.com](https://status.dliu.com) tests the site as an anonymous guest, with no sign-in and no AWS access. Two surfaces support it:
+
+- **`GET /health`** — a public, read-only endpoint outside `/api/`. CloudFront's `health` behaviour forwards no cookies, `Authorization` header or query string, and the handler reads none of them. It runs one cheap read per dependency (an S3 `HeadObject` of the file-list key for `storage`, and the SSM Entra config load for `signin`), each with a 3 s timeout, in parallel. It returns `application/health+json` cached 60 s, `200` when every function is `pass`/`warn` and `503` on `fail`, as `{status, time, functions:[{key, name, status, output?}]}`. It reveals nothing private: `output` is a generic reason such as `timeout` or `read failed`.
+- **`/docs/health`** — a public page (shared docs look) with a diagram of how the site is tested, a plain-language line per function and folded technical details. The full machine-readable version is at **[/docs/health.md](https://files.dliu.com/docs/health.md)**, which is enough on its own to implement the guest checks. `test/health.test.js` keeps the page, the Markdown and the endpoint in sync.
 
 ## Testing
 

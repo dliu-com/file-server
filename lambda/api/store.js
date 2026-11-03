@@ -10,7 +10,7 @@ const LISTING_KEY = '_data/files.json';
 // it would let one writer change the look (or inject CSS) on every site.
 const RESERVED = new Set(['_app', '_data', 'api', 'auth', 'dliu.com']);
 // Exact paths the pages function serves as the docs pages.
-const RESERVED_PATHS = new Set(['docs', 'docs/api', 'docs/api.md']);
+const RESERVED_PATHS = new Set(['docs', 'docs/api', 'docs/api.md', 'docs/health', 'docs/health.md']);
 // Browsers keep a file for 5 minutes; CloudFront keeps it for a day so visitors far from Ireland get it from a nearby
 // edge, and serves the old copy while it refreshes in the background. Replacing or deleting a file in S3, however
 // it happens, clears CloudFront's copy (clear.js), so the day only applies to unchanged files.

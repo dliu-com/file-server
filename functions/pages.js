@@ -1,8 +1,8 @@
 // CloudFront Function (cloudfront-js-2.0), viewer-request on the default behavior.
 // Folder pages: "/", "/index.html" and any URL ending in "/" show the file browser, which reads the folder
 // from the address bar. /docs is the docs page (architecture, cost, security); /docs/api and /docs/api.md are the API
-// reference. Everything else is a file in the bucket.
-var PAGES = { '/docs': '/_app/docs.html', '/docs/api': '/_app/docs-api.html', '/docs/api.md': '/_app/docs/api.md' };
+// reference; /docs/health and /docs/health.md are the public testing instructions. Everything else is a file.
+var PAGES = { '/docs': '/_app/docs.html', '/docs/api': '/_app/docs-api.html', '/docs/api.md': '/_app/docs/api.md', '/docs/health': '/_app/docs-health.html', '/docs/health.md': '/_app/docs/health.md' };
 
 function handler(event) {
   var request = event.request;

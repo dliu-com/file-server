@@ -5,7 +5,7 @@ const read = (file) => fs.readFileSync(path.join(__dirname, '..', file), 'utf8')
 const DL_CSS = '<link rel="stylesheet" href="https://files.dliu.com/dliu.com/ui/v1/dl.css">';
 const DL_DOCS_CSS = '<link rel="stylesheet" href="https://files.dliu.com/dliu.com/ui/v1/dl-docs.css">';
 const DL_ICON = 'https://files.dliu.com/dliu.com/favicon.png';
-const PAGES = ['web/index.html', 'web/docs.html', 'web/docs-api.html'];
+const PAGES = ['web/index.html', 'web/docs.html', 'web/docs-api.html', 'web/docs-health.html'];
 
 test('every page loads the shared dliu.com stylesheet before its own', () => {
   for (const file of PAGES) {
@@ -31,7 +31,7 @@ test('every page shows the Files logo top left and as favicon, and the DL logo i
   expect(read('web/logo.svg')).toContain('<svg');
 });
 
-test.each(['web/docs.html', 'web/docs-api.html'])('%s uses the shared docs stylesheet and the same four tabs', (file) => {
+test.each(['web/docs.html', 'web/docs-api.html', 'web/docs-health.html'])('%s uses the shared docs stylesheet and the same four tabs', (file) => {
   const page = read(file);
   expect(page.indexOf(DL_CSS)).toBeLessThan(page.indexOf(DL_DOCS_CSS));
   expect(page.indexOf(DL_DOCS_CSS)).toBeLessThan(page.indexOf('/_app/style.css'));
@@ -59,7 +59,7 @@ test('the app stylesheet leaves the header, buttons, docs and palette to the sha
 });
 
 test('scripts use the shared classes for buttons and status text', () => {
-  const scripts = ['web/app.js', 'web/common.js', 'web/docs-api.js', 'web/docs.js', 'web/diagram.js'].map(read).join('\n');
+  const scripts = ['web/app.js', 'web/common.js', 'web/docs-api.js', 'web/docs.js', 'web/docs-health.js', 'web/diagram.js'].map(read).join('\n');
   expect(scripts).not.toMatch(/class: '(button|primary|danger|muted|error|success)\b/);
   expect(scripts).not.toContain('header.top');
 });

@@ -81,6 +81,59 @@ async function invalidateWithCloudFront(paths) {
 // configuration only for these actions, and never use it to authenticate the caller.
 const UPLOAD_ACTIONS = new Set(['createUpload', 'signParts', 'completeUpload', 'abortUpload']);
 
+// ---------- Public health check (GET /health) ----------
+// Anonymous, read-only liveness for status.dliu.com. CloudFront's /health behavior forwards no cookies,
+// Authorization header or query string, and this handler reads none of them: see /docs/health.md.
+const HEALTH_TIMEOUT_MS = 3000;
+
+function withTimeout(promise, ms) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('timeout')), ms);
+    Promise.resolve(promise).then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (error) => { clearTimeout(timer); reject(error); },
+    );
+  });
+}
+
+async function runCheck(key, name, run) {
+  try {
+    await run();
+    return { key, name, status: 'pass' };
+  } catch (error) {
+    // output stays generic so the public endpoint reveals nothing about the dependency.
+    return { key, name, status: 'fail', output: error && error.message === 'timeout' ? 'timeout' : 'read failed' };
+  }
+}
+
+// One cheap read per dependency, in parallel, each with its own timeout; no S3 LIST and no paid third-party calls.
+async function health({ s3, getConfig, now }) {
+  const functions = await Promise.all([
+    runCheck('storage', 'File storage', () => withTimeout((async () => {
+      const { HeadObjectCommand } = require('@aws-sdk/client-s3');
+      try {
+        await s3.send(new HeadObjectCommand({ Bucket: process.env.FILE_BUCKET, Key: store.LISTING_KEY }));
+      } catch (error) {
+        // A 404 still proves S3 answered; only a real failure (timeout, 5xx, access denied) is unhealthy.
+        if (error && (error.name === 'NotFound' || (error.$metadata && error.$metadata.httpStatusCode === 404))) return;
+        throw error;
+      }
+    })(), HEALTH_TIMEOUT_MS)),
+    runCheck('signin', 'Microsoft sign-in', () => withTimeout(Promise.resolve().then(() => getConfig()), HEALTH_TIMEOUT_MS)),
+  ]);
+  const worst = functions.some((f) => f.status === 'fail') ? 'fail'
+    : functions.some((f) => f.status === 'warn') ? 'warn' : 'pass';
+  return {
+    statusCode: worst === 'fail' ? 503 : 200,
+    headers: {
+      'content-type': 'application/health+json',
+      'cache-control': 'max-age=60',
+      'x-content-type-options': 'nosniff',
+    },
+    body: JSON.stringify({ status: worst, time: new Date(now()).toISOString(), functions }),
+  };
+}
+
 function createHandler(deps = {}) {
   const getConfig = deps.loadConfig || loadConfig;
   const fetchImpl = deps.fetchImpl || ((...args) => fetch(...args));
@@ -116,6 +169,10 @@ function createHandler(deps = {}) {
     const context = event.requestContext;
     const managedApi = Boolean(context && ((context.authorizer && context.authorizer.jwt) ||
       (context.apiId && context.routeKey !== '$default')));
+    // Public liveness check: website only, no auth, no config dependency on the request path.
+    if (!managedApi && (method === 'GET' || method === 'HEAD') && path === '/health') {
+      return health({ s3: deps.s3 || s3Client(), getConfig, now: clock });
+    }
     if (managedApi && !route) return json(404, { error: 'Not found' });
     if (!route && method !== 'GET') return json(405, { error: 'Method not allowed' });
 

@@ -56,7 +56,7 @@ test('the site is deployed under _app/ only, so it never prunes files', () => {
 
 test('routes pages, files, data and the API to the right origins', () => {
   expect(distributionConfig().CacheBehaviors.map((b: { PathPattern: string }) => b.PathPattern))
-    .toEqual(['_app/*', '_data/*', 'api/*', 'auth/*']);
+    .toEqual(['_app/*', '_data/*', 'api/*', 'auth/*', 'health']);
   expect(behavior('api/*').AllowedMethods).toContain('POST');
   expect(behavior('auth/*').AllowedMethods).not.toContain('POST');
   expect(distributionConfig().DefaultCacheBehavior.FunctionAssociations).toHaveLength(2);
@@ -66,6 +66,23 @@ test('routes pages, files, data and the API to the right origins', () => {
     { ErrorCode: 404, ResponseCode: 404, ResponsePagePath: '/_app/index.html', ErrorCachingMinTTL: 10 },
   ]);
   expect(distributionConfig().Logging).toEqual({ IncludeCookies: true });
+});
+
+test('the public /health behavior is cached and forwards no cookies, auth or query string', () => {
+  const health = behavior('health');
+  expect(health.AllowedMethods).toEqual(expect.arrayContaining(['GET', 'HEAD']));
+  expect(health.AllowedMethods).not.toContain('POST');
+  // No origin request policy on /health => CloudFront forwards no cookies, Authorization header or query string.
+  expect(health.OriginRequestPolicyId).toBeUndefined();
+  const cachePolicies = template.findResources('AWS::CloudFront::CachePolicy');
+  const healthPolicy: any = Object.values(cachePolicies).find((p: any) => p.Properties.CachePolicyConfig.MaxTTL === 60);
+  expect(healthPolicy).toBeDefined();
+  const cfg = healthPolicy.Properties.CachePolicyConfig;
+  expect(cfg.DefaultTTL).toBe(60);
+  const keys = cfg.ParametersInCacheKeyAndForwardedToOrigin;
+  expect(keys.CookiesConfig.CookieBehavior).toBe('none');
+  expect(keys.HeadersConfig.HeaderBehavior).toBe('none');
+  expect(keys.QueryStringsConfig.QueryStringBehavior).toBe('none');
 });
 
 test('scripts only run from the site itself, and other dliu.com sites may frame it', () => {
@@ -187,7 +204,7 @@ test('the Microsoft API is opt-in and every exposed route has its exact delegate
   enabled.hasOutput('MicrosoftApiUrl', { Value: Match.anyValue() });
   // The website's routing and auth are the same with or without the managed API.
   const config = (t: Template) => Object.values(t.findResources('AWS::CloudFront::Distribution'))[0].Properties.DistributionConfig;
-  expect(config(enabled).CacheBehaviors.map((b: { PathPattern: string }) => b.PathPattern)).toEqual(['_app/*', '_data/*', 'api/*', 'auth/*']);
+  expect(config(enabled).CacheBehaviors.map((b: { PathPattern: string }) => b.PathPattern)).toEqual(['_app/*', '_data/*', 'api/*', 'auth/*', 'health']);
 });
 
 test('the API reference is deployed with the managed API origin filled in', () => {
