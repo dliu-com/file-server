@@ -1,4 +1,4 @@
-import { el, renderNav } from './common.js';
+import { el, onLanguageChange, renderNav, t } from './common.js';
 
 function inline(node, text) {
   const pattern = /`([^`]+)`|\[([^\]]+)\]\(([^)\s]+)\)|\*\*([^*]+)\*\*/g;
@@ -76,10 +76,19 @@ export async function loadApiDocs(root) {
     root.replaceChildren(renderApiMarkdown(await response.text()));
   } catch (error) {
     root.replaceChildren(el('p', { class: 'dl-error', role: 'alert' },
-      `Could not load the API reference: ${error.message}. `, el('a', { href: '/docs/api.md' }, 'Read the Markdown directly')));
+      t(`无法加载 API 指南：${error.message}。`, `Could not load the API reference: ${error.message}. `),
+      el('a', { href: '/docs/api.md' }, t('直接阅读 Markdown', 'Read the Markdown directly'))));
   }
 }
 
-renderNav();
+// The API reference itself is English only; in Chinese a note says so.
+function translate() {
+  renderNav();
+  const note = document.querySelector('.api-language-note');
+  if (note) note.hidden = t('zh', 'en') !== 'zh';
+  document.title = `API · ${t('文档', 'Docs')} · ${t('文件', 'Files')} · dliu.com`;
+}
+translate();
+onLanguageChange(translate);
 const root = document.getElementById('api-doc');
 if (root) loadApiDocs(root);

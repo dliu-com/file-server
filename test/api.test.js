@@ -318,5 +318,7 @@ describe('API', () => {
     expect(result.body).toContain('<link rel="icon" type="image/svg+xml" href="/_app/logo.svg">');
     expect(result.body).toContain('<a class="dl-brand" href="/"><img class="dl-logo" src="/_app/logo.svg"');
     expect(result.body).toContain('<footer class="dl-footer"><a class="dl-footer-logo" href="https://dliu.com" aria-label="dliu.com"><img src="https://files.dliu.com/dliu.com/favicon.png"');
+    expect(result.body).toContain('<a href="https://dliu.com">dliu.com</a> · <a href="/docs">Docs</a></footer>');
+    expect(result.body).not.toContain('href="/docs/api"');
   });
 });

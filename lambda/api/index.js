@@ -34,9 +34,9 @@ function errorPage(statusCode, message, cookies) {
 <title>Sign-in problem · Files · dliu.com</title><link rel="icon" type="image/svg+xml" href="/_app/logo.svg">
 <link rel="stylesheet" href="https://files.dliu.com/dliu.com/ui/v1/dl.css"><link rel="stylesheet" href="/_app/style.css"></head>
 <body class="dl-page"><header class="dl-header">
-<a class="dl-brand" href="/"><img class="dl-logo" src="/_app/logo.svg" alt="" width="32" height="32">Files</a><nav class="dl-nav" aria-label="Site"><a class="dl-button" href="/docs/api">Docs</a><a class="dl-button dl-signin" href="/auth/login">Sign in</a></nav></header>
+<a class="dl-brand" href="/"><img class="dl-logo" src="/_app/logo.svg" alt="" width="32" height="32">Files</a><nav class="dl-nav" aria-label="Site"><a class="dl-button" href="/docs">Docs</a><a class="dl-button dl-signin" href="/auth/login">Sign in</a></nav></header>
 <main class="dl-main dl-narrow"><h1>Sign-in problem</h1><p>${escapeHtml(message)}</p><p><a class="dl-button dl-button-primary" href="/auth/login">Try again</a></p></main>
-<footer class="dl-footer"><a class="dl-footer-logo" href="https://dliu.com" aria-label="dliu.com"><img src="https://files.dliu.com/dliu.com/favicon.png" alt="" width="24" height="24"></a> <a href="https://dliu.com">dliu.com</a> · <a href="/">Files</a> · <a href="/docs/api">Docs</a></footer></body></html>`,
+<footer class="dl-footer"><a class="dl-footer-logo" href="https://dliu.com" aria-label="dliu.com"><img src="https://files.dliu.com/dliu.com/favicon.png" alt="" width="24" height="24"></a> <a href="https://dliu.com">dliu.com</a> · <a href="/docs">Docs</a></footer></body></html>`,
   };
 }
 

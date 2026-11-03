@@ -10,26 +10,28 @@
   <link rel="stylesheet" href="https://files.dliu.com/dliu.com/ui/v1/dl.css">
   <link rel="stylesheet" href="https://files.dliu.com/dliu.com/ui/v1/dl-docs.css">
   <link rel="stylesheet" href="/_app/style.css">
+  <script src="/_app/i18n.js" defer></script>
   <script type="module" src="/_app/docs-api.js"></script>
 </head>
 <body class="dl-page">
   <header class="dl-header">
-    <a class="dl-brand" href="/"><img class="dl-logo" src="/_app/logo.svg" alt="" width="32" height="32">Files</a>
-    <nav class="dl-nav" aria-label="Site"></nav>
+    <a class="dl-brand" href="/"><img class="dl-logo" src="/_app/logo.svg" alt="" width="32" height="32"><span data-zh="文件">Files</span></a>
+    <nav class="dl-nav" aria-label="Site" data-zh-label="网站"></nav>
   </header>
   <main class="dl-main dl-docs-main">
-    <nav class="dl-tabs" aria-label="Docs sections">
-      <a href="/docs#architecture">Technical architecture</a>
-      <a href="/docs#cost">Cost</a>
-      <a href="/docs#security">Security</a>
+    <nav class="dl-tabs" aria-label="Docs sections" data-zh-label="文档章节">
+      <a href="/docs#architecture" data-zh="技术架构">Technical architecture</a>
+      <a href="/docs#cost" data-zh="运行成本">Cost</a>
+      <a href="/docs#security" data-zh="安全">Security</a>
       <a href="/docs/api" aria-current="page">API</a>
     </nav>
     <article class="dl-docs api-doc">
+      <p class="api-language-note dg-note" data-zh="此 API 指南只有英文版。" data-en="" hidden></p>
       <p class="dg-note">AI agents: read the <a href="/docs/api.md">plain-text API reference</a>. Authentication is required: configure your requester using the <a href="https://auth.dliu.com/docs/api">Auth API documentation</a>.</p>
-      <div id="api-doc" aria-live="polite"><p class="dl-muted">Loading API reference…</p></div>
+      <div id="api-doc" aria-live="polite"><p class="dl-muted" data-zh="正在加载 API 指南…">Loading API reference…</p></div>
       <noscript><p>Read the <a href="/docs/api.md">Markdown reference</a> without JavaScript.</p></noscript>
     </article>
   </main>
-  <footer class="dl-footer"><a class="dl-footer-logo" href="https://dliu.com" aria-label="dliu.com"><img src="https://files.dliu.com/dliu.com/favicon.png" alt="" width="24" height="24"></a> <a href="https://dliu.com">dliu.com</a> · <a href="/">Files</a></footer>
+  <footer class="dl-footer"><a class="dl-footer-logo" href="https://dliu.com" aria-label="dliu.com"><img src="https://files.dliu.com/dliu.com/favicon.png" alt="" width="24" height="24"></a> <a href="https://dliu.com">dliu.com</a> · <a href="/docs" data-zh="文档">Docs</a></footer>
 </body>
 </html>

@@ -8,42 +8,43 @@
   <link rel="icon" type="image/svg+xml" href="/_app/logo.svg">
   <link rel="stylesheet" href="https://files.dliu.com/dliu.com/ui/v1/dl.css">
   <link rel="stylesheet" href="/_app/style.css">
+  <script src="/_app/i18n.js" defer></script>
   <script type="module" src="/_app/app.js"></script>
 </head>
 <body class="dl-page">
   <header class="dl-header">
-    <a class="dl-brand" href="/"><img class="dl-logo" src="/_app/logo.svg" alt="" width="32" height="32">Files</a>
-    <nav class="dl-nav" aria-label="Site"></nav>
+    <a class="dl-brand" href="/"><img class="dl-logo" src="/_app/logo.svg" alt="" width="32" height="32"><span data-zh="文件">Files</span></a>
+    <nav class="dl-nav" aria-label="Site" data-zh-label="网站"></nav>
   </header>
   <main class="dl-main">
-    <nav class="crumbs" id="crumbs" aria-label="Folder"></nav>
+    <nav class="crumbs" id="crumbs" aria-label="Folder" data-zh-label="文件夹"></nav>
     <div class="toolbar">
-      <input type="search" id="search" placeholder="Search this folder" aria-label="Search this folder" autocomplete="off">
+      <input type="search" id="search" placeholder="Search this folder" aria-label="Search this folder" data-zh-placeholder="搜索此文件夹" data-zh-label="搜索此文件夹" autocomplete="off">
       <div class="owner-actions" id="owner-actions" hidden>
-        <button type="button" class="dl-button dl-button-primary" id="upload-files">＋ Upload files</button>
-        <button type="button" class="dl-button" id="upload-folder">Upload folder</button>
-        <button type="button" class="dl-button" id="new-folder">New folder</button>
+        <button type="button" class="dl-button dl-button-primary" id="upload-files" data-zh="＋ 上传文件">＋ Upload files</button>
+        <button type="button" class="dl-button" id="upload-folder" data-zh="上传文件夹">Upload folder</button>
+        <button type="button" class="dl-button" id="new-folder" data-zh="新建文件夹">New folder</button>
         <input type="file" id="file-input" multiple hidden>
         <input type="file" id="folder-input" webkitdirectory multiple hidden>
       </div>
     </div>
 
     <section class="dl-panel uploads" id="uploads" hidden aria-live="polite">
-      <div class="row spread"><strong id="upload-title">Uploading</strong><button type="button" class="dl-button" id="upload-cancel">Cancel</button></div>
+      <div class="row spread"><strong id="upload-title">Uploading</strong><button type="button" class="dl-button" id="upload-cancel" data-zh="取消">Cancel</button></div>
       <div class="progress"><div id="bar"></div></div>
       <div class="dl-muted small" id="upload-text"></div>
       <ul class="upload-log" id="upload-log"></ul>
     </section>
 
-    <p class="dl-muted" id="status">Loading…</p>
+    <p class="dl-muted" id="status">Loading… 加载中…</p>
     <div class="dl-table-wrap" id="files" hidden>
       <table class="dl-table files">
-        <thead><tr><th>Name</th><th class="size dl-num">Size</th><th class="date">Modified</th><th class="actions"><span class="dl-visually-hidden">Actions</span></th></tr></thead>
+        <thead><tr><th data-zh="名称">Name</th><th class="size dl-num" data-zh="大小">Size</th><th class="date" data-zh="修改日期">Modified</th><th class="actions"><span class="dl-visually-hidden" data-zh="操作">Actions</span></th></tr></thead>
         <tbody id="rows"></tbody>
       </table>
     </div>
-    <div class="drop-hint" id="drop-hint" hidden>Drop files or folders to upload them here</div>
+    <div class="drop-hint" id="drop-hint" hidden data-zh="把文件或文件夹拖到这里即可上传">Drop files or folders to upload them here</div>
   </main>
-  <footer class="dl-footer"><a class="dl-footer-logo" href="https://dliu.com" aria-label="dliu.com"><img src="https://files.dliu.com/dliu.com/favicon.png" alt="" width="24" height="24"></a> <a href="https://dliu.com">dliu.com</a> · <a href="/docs/api">Docs</a></footer>
+  <footer class="dl-footer"><a class="dl-footer-logo" href="https://dliu.com" aria-label="dliu.com"><img src="https://files.dliu.com/dliu.com/favicon.png" alt="" width="24" height="24"></a> <a href="https://dliu.com">dliu.com</a> · <a href="/docs" data-zh="文档">Docs</a></footer>
 </body>
 </html>

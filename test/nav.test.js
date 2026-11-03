@@ -11,12 +11,13 @@ class Element {
   get textContent() { return this.children.map((child) => typeof child === 'string' ? child : child.textContent).join(''); }
 }
 
-function render(pathname, cookie = '') {
+function render(pathname, cookie = '', window) {
   const nav = new Element('nav');
   const context = {
     document: { cookie, querySelector: (selector) => selector === '.dl-header .dl-nav' ? nav : null, createElement: (tag) => new Element(tag) },
     location: { pathname, search: '' },
     Node: Element,
+    ...(window ? { window } : {}),
   };
   const source = fs.readFileSync(path.join(__dirname, '../web/common.js'), 'utf8').replace(/^export /gm, '');
   vm.runInNewContext(`${source}\nrenderNav();`, context);
@@ -41,6 +42,16 @@ test('the owner gets Docs then Sign out, and Docs is marked current on both docs
 
 test('every page shell have the header nav that renderNav fills', () => {
   for (const file of ['web/index.html', 'web/docs.html', 'web/docs-api.html']) {
-    expect(fs.readFileSync(path.join(__dirname, '..', file), 'utf8')).toContain('<nav class="dl-nav" aria-label="Site"></nav>');
+    expect(fs.readFileSync(path.join(__dirname, '..', file), 'utf8')).toContain('<nav class="dl-nav" aria-label="Site" data-zh-label="网站"></nav>');
   }
+});
+
+test('with i18n.js loaded, labels follow the language and the language switcher stays last', () => {
+  const switcher = new Element('div');
+  switcher.className = 'dl-language';
+  const zh = { switcher, t: (zhText) => zhText };
+  expect(render('/', '', { FilesI18n: zh }).map((item) => item.text || item.class)).toEqual(['文档', '登录', 'dl-language']);
+  expect(render('/', 'files_owner=1', { FilesI18n: zh }).map((item) => item.text || item.class)).toEqual(['文档', '退出登录', 'dl-language']);
+  const en = { switcher, t: (zhText, enText) => enText };
+  expect(render('/docs', '', { FilesI18n: en }).map((item) => item.text || item.class)).toEqual(['Docs', 'Sign in', 'dl-language']);
 });

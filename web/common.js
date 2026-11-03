@@ -1,5 +1,13 @@
 // Shared helpers for the files.dliu.com pages.
 
+// i18n.js (a classic script loaded first) sets window.FilesI18n; without it everything stays English.
+const i18n = () => (typeof window !== 'undefined' && window.FilesI18n) || null;
+export const t = (zh, en) => (i18n() ? i18n().t(zh, en) : en);
+export const locale = () => (i18n() ? i18n().locale() : undefined);
+export const translateError = (message) => (i18n() ? i18n().translateError(message) : message);
+/** Runs `redraw` whenever the reader switches language. */
+export const onLanguageChange = (redraw) => window.addEventListener('files-language-change', redraw);
+
 // The owner hint cookie only decides whether to show owner controls; the API checks the real session.
 export const isOwner = () => document.cookie.split(';').some((c) => c.trim() === 'files_owner=1');
 
@@ -10,7 +18,7 @@ async function sha256Hex(text) {
 
 export class ApiError extends Error {
   constructor(message, status) {
-    super(message);
+    super(translateError(message));
     this.status = status;
   }
 }
@@ -39,7 +47,7 @@ export async function api(path, body) {
 export async function getListing() {
   const response = await fetch('/_data/files.json', { cache: 'no-store', headers: { accept: 'application/json' } });
   if (response.status === 403 || response.status === 404) return { files: [] };
-  if (!response.ok) throw new Error(`Could not load the file list (${response.status})`);
+  if (!response.ok) throw new Error(translateError(`Could not load the file list (${response.status})`));
   return response.json();
 }
 
@@ -49,7 +57,7 @@ export const urlPath = (path) => '/' + path.split('/').map((segment) => encodeUR
 
 export function formatDate(iso) {
   const date = new Date(iso);
-  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString(locale(), { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
 export function formatDuration(seconds) {
@@ -95,25 +103,27 @@ export function toast(message) {
   setTimeout(() => node.remove(), 2500);
 }
 
-export async function copyText(text, message = 'Link copied') {
+export async function copyText(text, message = t('链接已复制', 'Link copied')) {
   try {
     await navigator.clipboard.writeText(text);
     toast(message);
   } catch {
-    toast('Copy failed; select the text and copy it yourself');
+    toast(t('复制失败；请手动选择文字并复制', 'Copy failed; select the text and copy it yourself'));
   }
 }
 
 export const signInUrl = () => `/auth/login?return=${encodeURIComponent(location.pathname + location.search)}`;
 
-/** Fills the header's nav: Docs for everyone, then Sign out for the owner or Sign in for everyone else. */
+/** Fills the header's nav: Docs for everyone, then Sign out for the owner or Sign in for everyone else,
+ * then the language switcher (from i18n.js), which stays last. */
 export function renderNav() {
   const nav = document.querySelector('.dl-header .dl-nav');
   if (!nav) return;
   // /docs (architecture, cost, security) and /docs/api are the docs pages; /docs/ is an ordinary folder.
-  const docs = el('a', { class: 'dl-button', href: '/docs' }, 'Docs');
+  const docs = el('a', { class: 'dl-button', href: '/docs' }, t('文档', 'Docs'));
   if (location.pathname === '/docs' || location.pathname === '/docs/api') docs.setAttribute('aria-current', 'page');
+  const switcher = i18n() && i18n().switcher;
   nav.replaceChildren(docs, isOwner()
-    ? el('a', { class: 'dl-button', href: '/auth/logout' }, 'Sign out')
-    : el('a', { class: 'dl-button dl-signin', href: signInUrl() }, 'Sign in'));
+    ? el('a', { class: 'dl-button', href: '/auth/logout' }, t('退出登录', 'Sign out'))
+    : el('a', { class: 'dl-button dl-signin', href: signInUrl() }, t('登录', 'Sign in')), ...(switcher ? [switcher] : []));
 }

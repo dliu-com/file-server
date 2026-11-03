@@ -1,5 +1,6 @@
 import {
-  api, copyText, el, formatDate, formatDuration, formatSize, getListing, isOwner, renderNav, signInUrl, toast, urlPath,
+  api, copyText, el, formatDate, formatDuration, formatSize, getListing, isOwner, onLanguageChange, renderNav, signInUrl, t,
+  toast, translateError, urlPath,
 } from './common.js';
 
 const $ = (id) => document.getElementById(id);
@@ -71,7 +72,7 @@ function contents(path, query) {
 
 function renderCrumbs() {
   const parts = folder ? folder.split('/') : [];
-  const crumbs = [el('a', { href: '/', 'data-folder': '' }, 'Files')];
+  const crumbs = [el('a', { href: '/', 'data-folder': '' }, t('文件', 'Files'))];
   parts.forEach((part, i) => {
     const path = parts.slice(0, i + 1).join('/');
     crumbs.push(el('span', { class: 'sep', 'aria-hidden': 'true' }, '/'));
@@ -80,17 +81,17 @@ function renderCrumbs() {
       : el('a', { href: folderUrl(path), 'data-folder': path }, part));
   });
   $('crumbs').replaceChildren(...crumbs);
-  document.title = `${folder ? `${name(folder)} · ` : ''}Files · dliu.com`;
+  document.title = `${folder ? `${name(folder)} · ` : ''}${t('文件', 'Files')} · dliu.com`;
 }
 
 function actionsFor(item, isFolder) {
   const link = location.origin + (isFolder ? folderUrl(item.path) : urlPath(item.path));
-  const buttons = [el('button', { type: 'button', class: 'dl-button dl-button-small', title: 'Copy link', onclick: () => copyText(link) }, 'Copy link')];
-  if (!isFolder) buttons.push(el('a', { class: 'dl-button dl-button-small', href: urlPath(item.path), download: name(item.path), title: 'Download' }, 'Download'));
+  const buttons = [el('button', { type: 'button', class: 'dl-button dl-button-small', onclick: () => copyText(link) }, t('复制链接', 'Copy link'))];
+  if (!isFolder) buttons.push(el('a', { class: 'dl-button dl-button-small', href: urlPath(item.path), download: name(item.path) }, t('下载', 'Download')));
   if (owner) {
     buttons.push(
-      el('button', { type: 'button', class: 'dl-button dl-button-small', onclick: () => move(item.path) }, 'Move'),
-      el('button', { type: 'button', class: 'dl-button dl-button-small dl-button-danger', onclick: () => remove(item.path, isFolder ? item.count : 0) }, 'Delete'),
+      el('button', { type: 'button', class: 'dl-button dl-button-small', onclick: () => move(item.path) }, t('移动', 'Move')),
+      el('button', { type: 'button', class: 'dl-button dl-button-small dl-button-danger', onclick: () => remove(item.path, isFolder ? item.count : 0) }, t('删除', 'Delete')),
     );
   }
   return el('td', { class: 'actions' }, el('div', { class: 'row' }, buttons));
@@ -103,7 +104,7 @@ function render() {
   const rows = [
     ...folders.map((f) => el('tr', {},
       el('td', { class: 'name' }, el('a', { href: folderUrl(f.path), 'data-folder': f.path }, el('span', { class: 'icon', 'aria-hidden': 'true' }, '📁'), f.name)),
-      el('td', { class: 'size dl-num' }, `${f.count} file${f.count === 1 ? '' : 's'}`),
+      el('td', { class: 'size dl-num' }, t(`${f.count} 个文件`, `${f.count} file${f.count === 1 ? '' : 's'}`)),
       el('td', { class: 'date' }, formatDate(f.modified)),
       actionsFor(f, true))),
     ...files.map((f) => el('tr', {},
@@ -117,9 +118,9 @@ function render() {
   $('rows').replaceChildren(...rows);
   $('files').hidden = !rows.length;
   if (rows.length) setStatus('');
-  else if (query) setStatus('Nothing matches your search.');
-  else if (!folder) setStatus(owner ? 'No files yet. Upload some, or drop them here.' : 'No files yet.');
-  else setStatus(owner ? 'This folder is empty. Upload files to keep it; empty folders are not saved.' : 'This folder does not exist.');
+  else if (query) setStatus(t('没有符合搜索的内容。', 'Nothing matches your search.'));
+  else if (!folder) setStatus(owner ? t('还没有文件。上传一些，或把文件拖到这里。', 'No files yet. Upload some, or drop them here.') : t('还没有文件。', 'No files yet.'));
+  else setStatus(owner ? t('此文件夹是空的。上传文件即可保留它；空文件夹不会保存。', 'This folder is empty. Upload files to keep it; empty folders are not saved.') : t('此文件夹不存在。', 'This folder does not exist.'));
   $('drop-hint').hidden = !owner;
 }
 
@@ -135,7 +136,7 @@ function route() {
       $('files').hidden = true;
       $('drop-hint').hidden = true;
       $('status').className = '';
-      $('status').replaceChildren(el('strong', {}, 'Not found. '), `“${path}” does not exist or was moved. `, el('a', { href: '/', 'data-folder': '' }, 'Browse all files'));
+      $('status').replaceChildren(el('strong', {}, t('未找到。', 'Not found. ')), t(`“${path}” 不存在或已被移动。`, `“${path}” does not exist or was moved. `), el('a', { href: '/', 'data-folder': '' }, t('浏览所有文件', 'Browse all files')));
       $('status').hidden = false;
       return;
     }
@@ -158,6 +159,7 @@ async function reload() {
     setStatus(error.message, 'error');
     return;
   }
+  loaded = true;
   route();
 }
 
@@ -171,41 +173,44 @@ function handleError(error, what) {
     location.href = signInUrl();
     return;
   }
-  toast(`${what} failed: ${error.message}`);
+  toast(t(`${what}失败：${error.message}`, `${what} failed: ${error.message}`));
 }
 
 async function move(path) {
-  const to = prompt(`Move or rename “${name(path)}”. New path (use / for folders):`, path);
+  const to = prompt(t(`移动或重命名 “${name(path)}”。新路径（用 / 分隔文件夹）：`, `Move or rename “${name(path)}”. New path (use / for folders):`), path);
   if (to === null || to.trim().replace(/^\/+|\/+$/g, '') === path) return;
   try {
     const result = await api('/api/files/move', { from: path, to });
     const map = new Map(result.moved.map((m) => [m.from, m.to]));
     listing.files = listing.files.map((f) => (map.has(f.path) ? { ...f, path: map.get(f.path) } : f));
-    toast('Moved');
+    toast(t('已移动', 'Moved'));
     render();
     reload();
   } catch (error) {
-    handleError(error, 'Move');
+    handleError(error, t('移动', 'Move'));
   }
 }
 
 async function remove(path, count) {
-  const what = count ? `the folder “${name(path)}” and the ${count} file${count === 1 ? '' : 's'} in it` : `“${name(path)}”`;
-  if (!confirm(`Delete ${what}? Links to ${count ? 'them' : 'it'} will stop working.`)) return;
+  const question = count
+    ? t(`删除文件夹 “${name(path)}” 及其中的 ${count} 个文件？指向它们的链接将失效。`,
+      `Delete the folder “${name(path)}” and the ${count} file${count === 1 ? '' : 's'} in it? Links to them will stop working.`)
+    : t(`删除 “${name(path)}”？指向它的链接将失效。`, `Delete “${name(path)}”? Links to it will stop working.`);
+  if (!confirm(question)) return;
   try {
     const result = await api('/api/files/delete', { path });
     const gone = new Set(result.deleted);
     listing.files = listing.files.filter((f) => !gone.has(f.path));
-    toast('Deleted');
+    toast(t('已删除', 'Deleted'));
     render();
     reload();
   } catch (error) {
-    handleError(error, 'Delete');
+    handleError(error, t('删除', 'Delete'));
   }
 }
 
 function newFolder() {
-  const value = prompt('New folder name:');
+  const value = prompt(t('新文件夹名称：', 'New folder name:'));
   const clean = value && value.trim().replace(/^\/+|\/+$/g, '');
   if (clean) go(join(folder, clean));
 }
@@ -227,10 +232,10 @@ function putPart(url, blob, onProgress) {
     xhr.onload = () => {
       const etag = xhr.getResponseHeader('ETag');
       if (xhr.status >= 200 && xhr.status < 300 && etag) resolve(etag);
-      else reject(Object.assign(new Error(`Part upload failed (${xhr.status})`), { status: xhr.status }));
+      else reject(Object.assign(new Error(translateError(`Part upload failed (${xhr.status})`)), { status: xhr.status }));
     };
-    xhr.onerror = () => reject(new Error('Network error'));
-    xhr.onabort = () => reject(new Error('Cancelled'));
+    xhr.onerror = () => reject(new Error(translateError('Network error')));
+    xhr.onabort = () => reject(new Error(translateError('Cancelled')));
     current.xhrs.add(xhr);
     xhr.onloadend = () => current && current.xhrs.delete(xhr);
     xhr.send(blob);
@@ -267,7 +272,7 @@ async function uploadParts(file, plan, report) {
       next += 1;
       const blob = file.slice((part - 1) * plan.partSize, Math.min(part * plan.partSize, file.size));
       for (let attempt = 1; ; attempt += 1) {
-        if (current.cancelled) throw new Error('Cancelled');
+        if (current.cancelled) throw new Error(translateError('Cancelled'));
         try {
           // A 403 usually means the signed URL expired, so sign it again.
           const etag = await putPart(await urlFor(part, attempt > 1), blob, (n) => { loaded[part] = n; update(); });
@@ -294,7 +299,7 @@ async function uploadOne(file, path, report) {
     plan = await api('/api/uploads', request);
   } catch (error) {
     if (error.status !== 409 || !/already exists/.test(error.message)) throw error;
-    if (!confirm(`“${path}” already exists. Replace it?`)) return 'skipped';
+    if (!confirm(t(`“${path}” 已存在。要替换它吗？`, `“${path}” already exists. Replace it?`))) return 'skipped';
     plan = await api('/api/uploads', { ...request, overwrite: true });
   }
   try {
@@ -313,7 +318,7 @@ const warnLeave = (event) => { event.preventDefault(); event.returnValue = ''; }
 /** Uploads [{ file, relative }] into the current folder, one file at a time. */
 async function uploadAll(items) {
   if (current) {
-    toast('Wait for the current upload to finish');
+    toast(t('请等待当前上传完成', 'Wait for the current upload to finish'));
     return;
   }
   const queue = items.filter((item) => !JUNK.has(item.file.name));
@@ -334,19 +339,21 @@ async function uploadAll(items) {
   for (const [index, item] of queue.entries()) {
     if (current.cancelled) break;
     const path = join(target, item.relative);
-    $('upload-title').textContent = `Uploading ${index + 1} of ${queue.length}: ${item.relative}`;
+    $('upload-title').textContent = t(`正在上传第 ${index + 1} 个，共 ${queue.length} 个：${item.relative}`, `Uploading ${index + 1} of ${queue.length}: ${item.relative}`);
     const report = (bytes) => {
       const sent = done + bytes;
       const speed = sent / Math.max((performance.now() - started) / 1000, 0.1);
       $('bar').style.width = `${((sent / Math.max(total, 1)) * 100).toFixed(1)}%`;
-      $('upload-text').textContent = `${formatSize(sent)} of ${formatSize(total)} · ${formatSize(speed)}/s · ${formatDuration((total - sent) / speed) || '0:00'} left`;
+      const left = formatDuration((total - sent) / speed) || '0:00';
+      $('upload-text').textContent = t(`${formatSize(sent)} / ${formatSize(total)} · ${formatSize(speed)}/秒 · 剩余 ${left}`,
+        `${formatSize(sent)} of ${formatSize(total)} · ${formatSize(speed)}/s · ${left} left`);
     };
     report(0);
     try {
-      if (!item.file.size) throw new Error('empty files cannot be uploaded');
+      if (!item.file.size) throw new Error(translateError('Empty files cannot be uploaded'));
       const outcome = await uploadOne(item.file, path, report);
       results[outcome] += 1;
-      if (outcome === 'skipped') log.append(el('li', { class: 'dl-muted' }, `Skipped ${item.relative}`));
+      if (outcome === 'skipped') log.append(el('li', { class: 'dl-muted' }, t(`已跳过 ${item.relative}`, `Skipped ${item.relative}`)));
     } catch (error) {
       if (error.status === 401) {
         location.href = signInUrl();
@@ -366,12 +373,14 @@ async function uploadAll(items) {
   $('upload-cancel').hidden = true;
   $('bar').style.width = '100%';
   const summary = [
-    results.uploaded && `${results.uploaded} uploaded`,
-    results.replaced && `${results.replaced} replaced`,
-    results.skipped && `${results.skipped} skipped`,
-    results.failed && `${results.failed} failed`,
-  ].filter(Boolean).join(', ');
-  $('upload-title').textContent = cancelled ? `Upload cancelled${summary ? ` (${summary})` : ''}` : `Done: ${summary || 'nothing uploaded'}`;
+    results.uploaded && t(`${results.uploaded} 个已上传`, `${results.uploaded} uploaded`),
+    results.replaced && t(`${results.replaced} 个已替换`, `${results.replaced} replaced`),
+    results.skipped && t(`${results.skipped} 个已跳过`, `${results.skipped} skipped`),
+    results.failed && t(`${results.failed} 个失败`, `${results.failed} failed`),
+  ].filter(Boolean).join(t('，', ', '));
+  $('upload-title').textContent = cancelled
+    ? t(`上传已取消${summary ? `（${summary}）` : ''}`, `Upload cancelled${summary ? ` (${summary})` : ''}`)
+    : t(`完成：${summary || '没有上传任何文件'}`, `Done: ${summary || 'nothing uploaded'}`);
   $('upload-text').textContent = '';
   if (!results.failed && !cancelled) setTimeout(() => { if (!current) $('uploads').hidden = true; }, 4000);
   reload();
@@ -403,6 +412,12 @@ async function droppedItems(dataTransfer) {
 // ---------- Start ----------
 
 renderNav();
+let loaded = false;
+// Redraws everything the script wrote; the static text is translated by i18n.js.
+onLanguageChange(() => {
+  renderNav();
+  if (loaded) route();
+});
 document.addEventListener('click', (event) => {
   const link = event.target.closest('a[data-folder]');
   if (!link || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;

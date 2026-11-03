@@ -32,7 +32,10 @@ const el = (tag, attrs = {}, ...children) => {
 const walk = (node) => [node, ...node.children.filter((child) => child instanceof Element).flatMap(walk)];
 
 function renderer() {
-  const context = { el, renderNav: jest.fn(), document: { getElementById: () => null }, fetch: jest.fn() };
+  const context = {
+    el, renderNav: jest.fn(), t: (zh, en) => en, onLanguageChange: jest.fn(),
+    document: { getElementById: () => null, querySelector: () => null }, fetch: jest.fn(),
+  };
   vm.runInNewContext(read('web/docs-api.js').replace(/^import .*;$/gm, '').replace(/^export /gm, ''), context);
   return context;
 }
