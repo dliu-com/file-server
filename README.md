@@ -120,6 +120,8 @@ An API Gateway HTTP API validates the token's signature, tenant-specific v2 issu
 
 `files.write` does not include `files.delete`. Access is controlled by Entra user assignment to the shared **dliu API user** role (`api.access`), which every dliu managed API requires but which grants no scope by itself. Only the owner's designated standard account is assigned. Other organisation users keep normal website access, but website sign-in never grants API rights: without the role assignment their tokens are refused. Unlike website sign-in, the managed API does not also check for an `@dliu.com` address.
 
+**Accepted residual risk (F5).** The managed API authorises by the shared `api.access` role rather than a Files-specific role or an `oid` allow-list, so anyone assigned that role can write and delete files. This is accepted: Entra is the gate — **Assignment required** with the role assigned only to the owner's account — and the role is shared across dliu apps by design, so no per-app role or allow-list is added. (F4, that `files.write` can overwrite or move existing files without `files.delete`, stays as documented above.)
+
 ### Entra and SSM configuration
 
 1. On the shared **dliu API** registration (v2 access tokens), define admin-consent delegated scopes `files.read`, `files.write` and `files.delete`. The shared user-only app role **dliu API user** (`api.access`) is used by all dliu managed APIs; with **Assignment required** on its enterprise application, assign it only to the owner's designated standard account.

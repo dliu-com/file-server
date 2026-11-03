@@ -362,6 +362,7 @@ function security(root) {
     t('会话无法在服务器端撤销；被盗的 Cookie 在过期前（最多 12 小时）有效。轮换客户端密钥会使所有会话失效。', 'Sessions cannot be revoked on the server; a stolen cookie works until it expires (at most 12 hours). Rotating the client secret revokes all sessions.'),
     t('退出登录是普通链接，所以其他网站可以让所有者退出。除此之外无法以这种方式触发任何操作。', 'Sign-out is a plain link, so another site could sign the owner out. Nothing else can be triggered that way.'),
     t('上传的文件不做扫描；原样分发。', 'Uploaded files are not scanned; they are served exactly as uploaded.'),
+    t('托管 API 用共享的 dliu API 用户角色（api.access）授权，而不是 Files 专用角色或 oid 白名单，所以任何被分配该角色的人都能写入和删除文件，且托管 API 不另外检查 @dliu.com 邮箱。已接受：以 Entra 为门禁——"需要分配"且仅把该角色分配给所有者的账号；该角色按设计在各 dliu 应用间共享。', 'The managed API authorises with the shared dliu API user role (api.access), not a Files-specific role or an oid allow-list, so anyone assigned that role can write and delete files, and the managed API does not additionally check for an @dliu.com address. Accepted: Entra is the gate — "Assignment required" with the role assigned only to the owner\u2019s account; the role is shared across dliu apps by design.'),
   ]));
 
   root.append(more(t('每个页面和文件上的响应头', 'Response headers on every page and file'),
