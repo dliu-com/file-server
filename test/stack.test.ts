@@ -83,6 +83,7 @@ test('the API Lambda is invoked only through CloudFront and can invalidate it', 
     Runtime: 'nodejs22.x',
     Architectures: ['arm64'],
     Timeout: 60,
+    ReservedConcurrentExecutions: 10,
     Environment: { Variables: Match.objectLike({ PARAMETER_PREFIX: '/files', MAX_UPLOAD_BYTES: String(50 * 1024 ** 3) }) },
   }));
   template.hasResourceProperties('AWS::SSM::Parameter', { Name: '/files/distribution-id' });
@@ -170,6 +171,9 @@ test('the Microsoft API is opt-in and every exposed route has its exact delegate
     Principal: 'apigateway.amazonaws.com', Action: 'lambda:InvokeFunction', SourceArn: Match.anyValue(),
   });
   enabled.hasResourceProperties('AWS::ApiGatewayV2::Integration', { PayloadFormatVersion: '2.0' });
+  enabled.hasResourceProperties('AWS::ApiGatewayV2::Stage', {
+    DefaultRouteSettings: { ThrottlingRateLimit: 10, ThrottlingBurstLimit: 20 },
+  });
   enabled.hasResourceProperties('AWS::Lambda::Function', Match.objectLike({
     Environment: { Variables: Match.objectLike({
       API_GATEWAY_ID: Match.anyValue(), API_TENANT_ID: Match.anyValue(), API_AUDIENCE: Match.anyValue(), API_CLIENT_ID: Match.anyValue(),

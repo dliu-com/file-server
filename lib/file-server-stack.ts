@@ -96,6 +96,9 @@ export class FileServerStack extends Stack {
       // Moving a large folder copies every file inside S3.
       timeout: Duration.seconds(60),
       memorySize: 256,
+      // A denial-of-wallet cap: a single owner never needs more, and it bounds Lambda spend if the API
+      // is ever flooded (matches the other dliu.com sites).
+      reservedConcurrentExecutions: 10,
       description: 'files.dliu.com sign-in (Microsoft Entra) and upload/move/delete API',
       environment: {
         SITE_URL: siteUrl,
@@ -161,6 +164,10 @@ export class FileServerStack extends Stack {
       api.addEnvironment('API_TENANT_ID', tenantId);
       api.addEnvironment('API_AUDIENCE', audience);
       api.addEnvironment('API_CLIENT_ID', clientId);
+      // Throttle the managed API so a stolen or misused token cannot drive unbounded cost (matches the
+      // other dliu.com sites). Legitimate tool and agent use stays well under this.
+      const defaultStage = httpApi.defaultStage!.node.defaultChild as apigateway.CfnStage;
+      defaultStage.defaultRouteSettings = { throttlingRateLimit: 10, throttlingBurstLimit: 20 };
       managedApiUrl = httpApi.apiEndpoint;
       new CfnOutput(this, 'MicrosoftApiUrl', { value: managedApiUrl });
     }
