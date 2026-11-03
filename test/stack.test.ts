@@ -109,6 +109,25 @@ test('the API Lambda is invoked only through CloudFront and can invalidate it', 
   });
 });
 
+test('both the website and managed API roles may invalidate the CDN after a change', () => {
+  // Default stack has no managed API: only the website role may invalidate.
+  const base = Object.values(template.findResources('AWS::IAM::Policy', {
+    Properties: { PolicyName: Match.stringLikeRegexp('^InvalidatePolicy') },
+  }));
+  expect(base).toHaveLength(1);
+  expect(base[0].Properties.Roles).toHaveLength(1);
+  // With the managed API enabled, both roles may invalidate, so a managed replace/move/delete clears the CDN.
+  const enabled = Template.fromStack(new FileServerStack(new App(), 'FileServerInvalidate', {
+    subdomain: 'files', frameAncestors: ['https://dliu.com'], maxUploadBytes: 50 * 1024 ** 3,
+    microsoftApi: true, env: { account: '123456789012', region: 'eu-west-1' },
+  }));
+  const split = Object.values(enabled.findResources('AWS::IAM::Policy', {
+    Properties: { PolicyName: Match.stringLikeRegexp('^InvalidatePolicy') },
+  }));
+  expect(split).toHaveLength(1);
+  expect(split[0].Properties.Roles).toHaveLength(2);
+});
+
 test('Lambda log groups keep three months, matching the account-wide standard', () => {
   template.resourcePropertiesCountIs('AWS::Logs::LogGroup', { RetentionInDays: 90 }, 2);
   template.resourcePropertiesCountIs('AWS::Logs::LogGroup', { RetentionInDays: 30 }, 0);

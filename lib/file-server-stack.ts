@@ -154,6 +154,7 @@ export class FileServerStack extends Stack {
     // API Gateway validates Microsoft's signature, issuer, audience, expiry and each route's delegated scope;
     // the Lambda then checks the gateway, tenant, approved client, shared api.access user role and scope again.
     let managedApiUrl: string | undefined;
+    let managedApiRole: iam.IRole | undefined;
     if (props.microsoftApi) {
       const parameter = (name: string) => ssm.StringParameter.valueForStringParameter(this, `${PARAMETER_PREFIX}/api-${name}`);
       const tenantId = parameter('tenant-id');
@@ -172,6 +173,7 @@ export class FileServerStack extends Stack {
           API_AUDIENCE: audience,
           API_CLIENT_ID: clientId,
         });
+      managedApiRole = managedApi.role!;
       const authorizer = new authorizers.HttpJwtAuthorizer('MicrosoftJwt',
         Fn.join('', ['https://login.microsoftonline.com/', tenantId, '/v2.0']), { jwtAudience: [audience] });
       const integration = new integrations.HttpLambdaIntegration('FilesApi', managedApi);
@@ -352,8 +354,10 @@ export class FileServerStack extends Stack {
       stringValue: distribution.distributionId,
       description: 'files.dliu.com CloudFront distribution, for invalidating changed files',
     });
+    // Both API roles may invalidate the CDN after a change: the website function for owner edits, and the
+    // managed API function so a replace/move/delete through it (including under dliu.com/) clears the CDN too.
     new iam.Policy(this, 'InvalidatePolicy', {
-      roles: [api.role!],
+      roles: managedApiRole ? [api.role!, managedApiRole] : [api.role!],
       statements: [new iam.PolicyStatement({ actions: ['cloudfront:CreateInvalidation'], resources: [distribution.distributionArn] })],
     });
 
