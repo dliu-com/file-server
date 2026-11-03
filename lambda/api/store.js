@@ -5,8 +5,10 @@
 //   _app/...           the site's pages, scripts and styles (deployed by the stack)
 //   _data/files.json   every file: the public listing and the source of truth
 const LISTING_KEY = '_data/files.json';
-// Top-level names the site itself uses. Files cannot go there.
-const RESERVED = new Set(['_app', '_data', 'api', 'auth']);
+// Top-level names the site itself uses, or that other dliu.com sites load. Files cannot go there.
+// 'dliu.com' holds the shared stylesheet and icon every dliu.com site embeds; letting the API overwrite
+// it would let one writer change the look (or inject CSS) on every site.
+const RESERVED = new Set(['_app', '_data', 'api', 'auth', 'dliu.com']);
 // Exact paths the pages function serves as the docs pages.
 const RESERVED_PATHS = new Set(['docs', 'docs/api', 'docs/api.md']);
 // Browsers keep a file for 5 minutes; CloudFront keeps it for a day so visitors far from Ireland get it from a nearby

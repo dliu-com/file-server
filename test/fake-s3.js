@@ -80,6 +80,15 @@ function createFakeS3() {
       case 'AbortMultipartUploadCommand':
         if (!uploads.delete(input.UploadId)) throw error('NoSuchUpload', 404);
         return {};
+      case 'ListPartsCommand': {
+        const upload = uploads.get(input.UploadId);
+        if (!upload) throw error('NoSuchUpload', 404);
+        // Browser-uploaded parts never reach this fake; report the size the test says S3 received.
+        const total = upload.parts.size
+          ? [...upload.parts.values()].reduce((sum, body) => sum + body.length, 0)
+          : (fakeS3.completedSize != null ? fakeS3.completedSize : 1234);
+        return { Parts: [{ PartNumber: 1, Size: total }], IsTruncated: false };
+      }
       default:
         throw new Error(`Fake S3 does not handle ${name}`);
     }

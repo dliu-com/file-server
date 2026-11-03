@@ -111,6 +111,16 @@ export class FileServerStack extends Stack {
     });
     fileBucket.grantReadWrite(api);
     fileBucket.grantDelete(api);
+    // Backstop to cleanPath: the API role must never change the site's own code (_app/) or the shared
+    // dliu.com/ assets that every dliu.com site loads, even if a path check is ever bypassed. An explicit
+    // Deny wins over the grants above. Reads stay allowed, and _data/ (the listing) is not under these
+    // prefixes. Deploys use the BucketDeployment role, and dliu.com/ is published out of band, so neither
+    // is affected.
+    api.addToRolePolicy(new iam.PolicyStatement({
+      effect: iam.Effect.DENY,
+      actions: ['s3:PutObject', 's3:DeleteObject', 's3:AbortMultipartUpload'],
+      resources: [fileBucket.arnForObjects('_app/*'), fileBucket.arnForObjects('dliu.com/*')],
+    }));
     api.addToRolePolicy(new iam.PolicyStatement({
       actions: ['ssm:GetParameters'],
       resources: [this.formatArn({ service: 'ssm', resource: 'parameter', resourceName: PARAMETER_PREFIX.slice(1) + '/*' })],

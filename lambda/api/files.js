@@ -111,6 +111,21 @@ function createFiles({ s3, bucket, region, maxBytes, tokenKey, now = Date.now, i
     return upload;
   }
 
+  // The presigned part URLs sign only `host`, so a writer could PUT more bytes per part than declared and
+  // store far more than the size they asked for (a cost attack). Summing the real part sizes before the
+  // upload is finalised catches that; aborting instead of completing means an existing file is never touched.
+  async function uploadedBytes(path, uploadId) {
+    const { ListPartsCommand } = sdk();
+    let total = 0;
+    let marker;
+    do {
+      const result = await s3.send(new ListPartsCommand({ Bucket: bucket, Key: path, UploadId: uploadId, PartNumberMarker: marker }));
+      for (const part of result.Parts || []) total += part.Size || 0;
+      marker = result.IsTruncated ? result.NextPartNumberMarker : undefined;
+    } while (marker);
+    return total;
+  }
+
   // Server-side copy within the bucket. Large files are copied in parallel parts so moves stay fast.
   async function copy(from, to, file) {
     const { CopyObjectCommand, CreateMultipartUploadCommand, UploadPartCopyCommand, CompleteMultipartUploadCommand, AbortMultipartUploadCommand } = sdk();
@@ -191,7 +206,12 @@ function createFiles({ s3, bucket, region, maxBytes, tokenKey, now = Date.now, i
       }).sort((a, b) => a.PartNumber - b.PartNumber);
       if (sorted.some((p, i) => p.PartNumber !== i + 1)) throw new BadRequest('Invalid part list');
 
-      const { CompleteMultipartUploadCommand } = sdk();
+      const { CompleteMultipartUploadCommand, AbortMultipartUploadCommand } = sdk();
+      const actual = await uploadedBytes(upload.path, upload.uploadId);
+      if (actual !== upload.size) {
+        await s3.send(new AbortMultipartUploadCommand({ Bucket: bucket, Key: upload.path, UploadId: upload.uploadId })).catch(() => {});
+        throw new BadRequest(`Uploaded ${actual} bytes but ${upload.size} were declared`);
+      }
       await s3.send(new CompleteMultipartUploadCommand({
         Bucket: bucket, Key: upload.path, UploadId: upload.uploadId, MultipartUpload: { Parts: sorted },
       }));

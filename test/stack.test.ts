@@ -116,6 +116,23 @@ test('files replaced or deleted in S3 by any route are cleared from CloudFront',
   expect(policies).not.toContain('s3:DeleteObject');
 });
 
+test('the API role is denied writing the site code and shared dliu.com assets', () => {
+  template.hasResourceProperties('AWS::IAM::Policy', {
+    PolicyDocument: {
+      Statement: Match.arrayWith([
+        Match.objectLike({
+          Effect: 'Deny',
+          Action: ['s3:PutObject', 's3:DeleteObject', 's3:AbortMultipartUpload'],
+          Resource: [
+            Match.objectLike({ 'Fn::Join': Match.arrayWith([Match.arrayWith([Match.stringLikeRegexp('_app/\\*')])]) }),
+            Match.objectLike({ 'Fn::Join': Match.arrayWith([Match.arrayWith([Match.stringLikeRegexp('dliu\\.com/\\*')])]) }),
+          ],
+        }),
+      ]),
+    },
+  });
+});
+
 test('files are cached at the edge worldwide over HTTP/3', () => {
   expect(distributionConfig().PriceClass).toBe('PriceClass_All');
   expect(distributionConfig().HttpVersion).toBe('http2and3');

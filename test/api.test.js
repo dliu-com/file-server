@@ -115,6 +115,7 @@ describe('API', () => {
     [{ path: 'a/b\u0007.txt', size: 10 }, 'control characters'],
     [{ path: '_app/app.js', size: 10 }, 'reserved'],
     [{ path: 'api/x', size: 10 }, 'reserved'],
+    [{ path: 'dliu.com/ui/v1/dl.css', size: 10 }, 'reserved'],
     [{ path: 'index.html', size: 10 }, 'reserved'],
     [{ path: 'docs', size: 10 }, 'reserved'],
     [{ path: 'docs/api', size: 10 }, 'reserved'],
@@ -162,8 +163,8 @@ describe('API', () => {
     expect(file).toEqual({ path: 'me/resume.pdf', size: 178305, type: 'application/pdf', modified: new Date(NOW).toISOString() });
     expect(s3.json(LISTING_KEY)).toEqual({ files: [file], updatedAt: new Date(NOW).toISOString() });
     expect(s3.objects.get(LISTING_KEY).cacheControl).toBe('no-cache');
-    await upload(call, s3, 'dliu.com/favicon.png', { contentType: 'image/png' });
-    expect(listed(s3)).toEqual(['dliu.com/favicon.png', 'me/resume.pdf']);
+    await upload(call, s3, 'notes/todo.txt', { contentType: 'text/plain' });
+    expect(listed(s3)).toEqual(['me/resume.pdf', 'notes/todo.txt']);
     expect(invalidated).toEqual([]);
   });
 
@@ -194,6 +195,21 @@ describe('API', () => {
     expect((await send([{ partNumber: 1, etag: '"a"' }])).statusCode).toBe(400);
     expect((await send([1, 1, 3].map((n) => ({ partNumber: n, etag: '"a"' })))).statusCode).toBe(400);
     expect((await send([1, 2, 3].map((n) => ({ partNumber: n, etag: '<bad>' })))).statusCode).toBe(400);
+  });
+
+  test('complete rejects an upload whose real size differs from the declared size', async () => {
+    const { call, s3 } = setup();
+    // Declare 40 MiB but have S3 report 90 MiB of parts (a writer PUTting oversized parts).
+    const plan = (await call('POST', '/api/uploads', { body: { path: 'big.bin', size: 40 * MiB } })).json;
+    s3.completedSize = 90 * MiB;
+    const parts = Array.from({ length: plan.partCount }, (_, i) => ({ partNumber: i + 1, etag: `"${'a'.repeat(32)}"` }));
+    const done = await call('POST', '/api/uploads/complete', { body: { token: plan.token, parts } });
+    expect(done.statusCode).toBe(400);
+    expect(done.json.error).toContain('declared');
+    // The upload was aborted, nothing was listed, and no object was created.
+    expect(s3.uploads.size).toBe(0);
+    expect(s3.objects.has('big.bin')).toBe(false);
+    expect(s3.calls.some((c) => c.name === 'CompleteMultipartUploadCommand')).toBe(false);
   });
 
   test('abort cancels the multipart upload', async () => {
