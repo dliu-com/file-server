@@ -97,7 +97,7 @@ function numbers() {
 function functionsTable() {
   const rows = [
     [t('页面', 'Pages'), t('显示文件浏览器和文档页', 'Shows the file browser and docs pages'),
-      t('以访客身份打开网站，确认能加载', 'Open the site as a guest and check it loads'), t('访客看不到任何文件', 'Visitors see no files')],
+      t('以访客身份打开网站，确认能加载并列出文件；每次发布前还会检查页面脚本能正常解析运行', 'Open the site as a guest and confirm it loads and lists files; before each release the page scripts are also checked so they parse and run'), t('访客看到空白或卡住的页面', 'Visitors see a blank or stuck page')],
     [t('共享外观', 'Shared UI'), t('提供每个 dliu.com 网站都会加载的样式和图标', 'Serves the look and icon every dliu.com site loads'),
       t('获取共享样式表和图标', 'Fetch the shared stylesheet and icon'), t('其他网站外观损坏', 'Other sites look broken')],
     [t('文件清单', 'File list'), t('公开的文件列表', 'The public list of files'),

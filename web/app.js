@@ -93,6 +93,8 @@ function actionsFor(item, isFolder) {
   const buttons = [el('button', { type: 'button', class: 'dl-button dl-button-small', onclick: () => copyText(link) }, t('复制链接', 'Copy link'))];
   if (!isFolder) buttons.push(el('a', { class: 'dl-button dl-button-small', href: urlPath(item.path), download: name(item.path) }, t('下载', 'Download')));
   if (owner && !isShared(item.path)) {
+    buttons.push(
+      el('button', { type: 'button', class: 'dl-button dl-button-small', onclick: () => move(item.path) }, t('移动', 'Move')),
       el('button', { type: 'button', class: 'dl-button dl-button-small dl-button-danger', onclick: () => remove(item.path, isFolder ? item.count : 0) }, t('删除', 'Delete')),
     );
   }

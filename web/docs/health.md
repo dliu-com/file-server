@@ -78,6 +78,21 @@ when it is `fail`. The top-level `status` is the worst of the functions'.
 | `storage` | File storage | S3 `HeadObject` of the file list key. A `404` still counts as reachable; only a timeout or real error is `fail`. |
 | `signin` | Microsoft sign-in | Loads the Entra sign-in configuration from SSM (the same read the site uses to sign in). Missing configuration is `fail`. |
 
+## Build-time checks
+
+Some breakages return HTTP `200` and so are invisible to the guest checks above: a page's HTML and the file
+list still load, but a syntax error in its browser script leaves the page stuck. These are guarded by the site's
+own test suite, which runs before every release, not by `status.dliu.com`:
+
+| Check | What it guards | Test |
+| --- | --- | --- |
+| Script parse | Every browser script under `web/` parses (`node --check`), so a page cannot ship a script that fails to load. | `test/assets.test.js` |
+
+Known regression: on 2026-11-04 the homepage stayed on `Loading… 加载中…` because `web/app.js` had a syntax
+error (a dropped `buttons.push(` left a dangling `);` in `actionsFor`). `GET /` still returned `200` with
+`dl-header`, and `/_data/files.json` still returned `200`, so no guest check caught it; `test/assets.test.js`
+now does. When a new page bug is found, add a test and record it here.
+
 ## Not tested
 
 - Signed-in actions: uploading, moving or deleting files (the tests never sign in).
