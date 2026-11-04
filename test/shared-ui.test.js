@@ -43,8 +43,15 @@ test.each(['web/docs.html'])('%s uses the shared docs stylesheet and the same ta
   for (const zh of ['架构', '运行成本', '安全', '健康']) expect(tabs).toContain(`data-zh="${zh}"`);
 });
 
-test('the docs page scripts and diagram kit load only from /_app/', () => {
+test('the Architecture section opens with a link to the source repo', () => {
   const page = read('web/docs.html');
+  const article = page.match(/<article id="architecture"[^>]*>([\s\S]*?)<\/article>/)[1];
+  const firstTag = article.match(/<(\w[^>]*)>/)[0];
+  expect(firstTag).toBe('<p class="dl-docs-repo">');
+  expect(article).toContain('<p class="dl-docs-repo"><span data-zh="源代码：">Source code:</span> <a href="https://github.com/dliu-com/file-server">github.com/dliu-com/file-server</a></p>');
+});
+
+test('the docs page scripts and diagram kit load only from /_app/', () => {  const page = read('web/docs.html');
   expect(page).toContain('<script src="/_app/i18n.js" defer></script>');
   expect(page).toContain('<script type="module" src="/_app/docs.js"></script>');
   expect(read('web/docs.js')).toContain("from './diagram.js'");
