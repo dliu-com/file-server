@@ -14,8 +14,8 @@ const keep = process.argv.includes('--keep');
 
 const param = (name) => execFileSync('aws', ['ssm', 'get-parameter', '--region', REGION, '--name', `${PREFIX}/${name}`,
   '--with-decryption', '--query', 'Parameter.Value', '--output', 'text']).toString().trim();
-const config = { tenantId: param('entra-tenant-id'), clientId: param('entra-client-id'), clientSecret: param('entra-client-secret') };
-const session = auth.sign({ user: `smoke-test@${new URL(SITE).hostname}`, name: 'Smoke test', exp: Math.floor(Date.now() / 1000) + 600 }, auth.sessionKey(config));
+const config = { clientSecret: param('entra-client-secret') };
+const session = auth.sign({ typ: 'session', user: `smoke-test@${new URL(SITE).hostname}`, name: 'Smoke test', exp: Math.floor(Date.now() / 1000) + 600 }, auth.sessionKey(config));
 const cookie = `${auth.SESSION_COOKIE}=${session}`;
 
 function check(condition, message) {

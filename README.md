@@ -89,13 +89,13 @@ When idle, the only cost is file storage.
 Requirements: the root `dliu.com` stack (exports `MainDomain`, `MainHostedZoneId`) and traffic-monitor (exports `TrafficVisitorFunctionArn`, `TrafficGeoOriginRequestPolicyId`) must already be deployed in eu-west-1.
 
 1. In the Microsoft Entra app registration, add the **Web** redirect URI `https://files.dliu.com/auth/callback`, and create a client secret. The video site's app registration can be reused. Optionally, set *Enterprise applications → (the app) → Assignment required = Yes* and assign only the people who may upload.
-2. Store the app credentials (prompts for tenant ID, client ID and client secret; the secret is not echoed):
+2. Store the app credentials (prompts for client ID and client secret; the secret is not echoed; the tenant id comes from the shared `/dliu/entra-tenant-id` parameter):
 
    ```sh
    make set-secrets
    ```
 
-   They go to SSM as `/files/entra-tenant-id`, `/files/entra-client-id` and `/files/entra-client-secret` (SecureString). Run it again any time to rotate the secret.
+   They go to SSM as `/files/entra-client-id` and `/files/entra-client-secret` (SecureString). Run it again any time to rotate the secret.
 3. Install and deploy:
 
    ```sh
@@ -127,13 +127,14 @@ An API Gateway HTTP API validates the token's signature, tenant-specific v2 issu
 ### Entra and SSM configuration
 
 1. On the shared **dliu API** registration (v2 access tokens), define admin-consent delegated scopes `files.read`, `files.write` and `files.delete`. The shared user-only app role **dliu API user** (`api.access`) is used by all dliu managed APIs; with **Assignment required** on its enterprise application, assign it only to the owner's designated standard account.
-2. Store these non-secret **String** parameters in eu-west-1, with values from the [Auth API documentation](https://auth.dliu.com/docs/api):
+2. The tenant id and the shared dliu API application id come from the central **audit** stack, so this app reads them instead of keeping its own copies:
 
    | Parameter | Value |
    | --- | --- |
-   | `/files/api-tenant-id` | The Entra directory ID |
-   | `/files/api-audience` | The shared dliu API application/client ID (a GUID, without `api://`) |
-   | `/files/api-client-id` | The same ID: the only approved SPA client (`azp`) |
+   | `/dliu/entra-tenant-id` | The Entra directory ID (shared, read at deploy and runtime) |
+   | `/dliu/api-app-id` | The shared dliu API application/client ID — a GUID, without `api://`; used as both the token audience and the only approved SPA client (`azp`) |
+
+   The stack reads both at deploy time for the managed-API authorizer and grants the Lambdas `ssm:GetParameter` on exactly those two ARNs; no per-app `/files/api-*` copies are stored.
 
 3. With `microsoftApi: true` in `config/site.json`, deploy and read `MicrosoftApiUrl` from `make outputs`. The deployment fails if the parameters are missing; set `microsoftApi` to `false` to deploy without the managed API.
 

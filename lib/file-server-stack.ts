@@ -30,6 +30,10 @@ import apiRoutes from '../lambda/api/routes.json';
 
 const ROOT = path.join(__dirname, '..');
 export const PARAMETER_PREFIX = '/files';
+// Shared metadata lives once in the dliu-com/audit stack (same region). The Entra tenant and the shared
+// "dliu API" application id are read from here instead of per-app copies.
+export const CENTRAL_TENANT_PARAMETER = '/dliu/entra-tenant-id';
+export const CENTRAL_API_APP_PARAMETER = '/dliu/api-app-id';
 /** Replaced at deploy time in web/docs/api.md with the managed API's actual origin. */
 export const API_URL_PLACEHOLDER = '{{FILES_API_URL}}';
 
@@ -42,7 +46,7 @@ export interface FileServerStackProps extends StackProps {
   maxUploadBytes: number;
   /**
    * Adds the managed API: an HTTP API that accepts Microsoft-issued access tokens for the shared dliu API
-   * registration. Needs the /files/api-tenant-id, /files/api-audience and /files/api-client-id SSM parameters.
+   * registration. Reads the shared /dliu/entra-tenant-id and /dliu/api-app-id SSM parameters from the audit stack.
    */
   microsoftApi?: boolean;
 }
@@ -99,9 +103,13 @@ export class FileServerStack extends Stack {
       SITE_URL: siteUrl,
       ROOT_DOMAIN: rootDomain,
       PARAMETER_PREFIX,
+      // The Entra tenant id is read at runtime from the shared audit stack, not a per-app copy.
+      TENANT_PARAMETER: CENTRAL_TENANT_PARAMETER,
       FILE_BUCKET: fileBucket.bucketName,
       MAX_UPLOAD_BYTES: String(props.maxUploadBytes),
     };
+    const centralParameterArns = [CENTRAL_TENANT_PARAMETER, CENTRAL_API_APP_PARAMETER].map((name) =>
+      this.formatArn({ service: 'ssm', resource: 'parameter', resourceName: name.slice(1) }));
     const makeApi = (id: string, logsId: string, description: string, denyShared: boolean, extraEnv: Record<string, string> = {}) => {
       const fn = new lambda.Function(this, id, {
         runtime: lambda.Runtime.NODEJS_22_X,
@@ -137,6 +145,12 @@ export class FileServerStack extends Stack {
         actions: ['ssm:GetParameters'],
         resources: [this.formatArn({ service: 'ssm', resource: 'parameter', resourceName: PARAMETER_PREFIX.slice(1) + '/*' })],
       }));
+      // The shared Entra tenant id and dliu API application id, read from the central audit stack. Scoped to
+      // exactly those two parameter ARNs.
+      fn.addToRolePolicy(new iam.PolicyStatement({
+        actions: ['ssm:GetParameter', 'ssm:GetParameters'],
+        resources: centralParameterArns,
+      }));
       fn.addToRolePolicy(new iam.PolicyStatement({
         actions: ['kms:Decrypt'],
         resources: ['*'],
@@ -156,10 +170,11 @@ export class FileServerStack extends Stack {
     let managedApiUrl: string | undefined;
     let managedApiRole: iam.IRole | undefined;
     if (props.microsoftApi) {
-      const parameter = (name: string) => ssm.StringParameter.valueForStringParameter(this, `${PARAMETER_PREFIX}/api-${name}`);
-      const tenantId = parameter('tenant-id');
-      const audience = parameter('audience');
-      const clientId = parameter('client-id');
+      // The tenant and audience/client are the shared values from the central audit stack.
+      const tenantId = ssm.StringParameter.valueForStringParameter(this, CENTRAL_TENANT_PARAMETER);
+      const apiAppId = ssm.StringParameter.valueForStringParameter(this, CENTRAL_API_APP_PARAMETER);
+      const audience = apiAppId;
+      const clientId = apiAppId;
       const httpApi = new apigateway.HttpApi(this, 'MicrosoftApi', {
         description: 'Files API: Microsoft Entra access tokens, delegated permissions and assigned users',
       });

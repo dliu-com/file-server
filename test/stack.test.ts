@@ -109,6 +109,25 @@ test('the API Lambda is invoked only through CloudFront and can invalidate it', 
   });
 });
 
+test('the tenant id and shared API app id come from the central audit stack, scoped to exactly those two parameters', () => {
+  // Runtime: the website sign-in reads the tenant id from the shared parameter, not a per-app copy.
+  template.hasResourceProperties('AWS::Lambda::Function', Match.objectLike({
+    Environment: { Variables: Match.objectLike({ TENANT_PARAMETER: '/dliu/entra-tenant-id' }) },
+  }));
+  // IAM: ssm:GetParameter(s) is granted on exactly the two central ARNs and nothing broader there.
+  const json = JSON.stringify(template.toJSON());
+  expect(json).toContain('parameter/dliu/entra-tenant-id');
+  expect(json).toContain('parameter/dliu/api-app-id');
+  const policies = Object.values(template.findResources('AWS::IAM::Policy')) as any[];
+  const central = policies.flatMap((p) => p.Properties.PolicyDocument.Statement)
+    .filter((s: any) => JSON.stringify(s.Resource).includes('/dliu/entra-tenant-id'));
+  expect(central.length).toBeGreaterThan(0);
+  for (const statement of central) {
+    expect([].concat(statement.Action).every((a: string) => a === 'ssm:GetParameter' || a === 'ssm:GetParameters')).toBe(true);
+    expect(JSON.stringify(statement.Resource)).not.toContain('/files');
+  }
+});
+
 test('both the website and managed API roles may invalidate the CDN after a change', () => {
   // Default stack has no managed API: only the website role may invalidate.
   const base = Object.values(template.findResources('AWS::IAM::Policy', {
@@ -222,7 +241,8 @@ test('the Microsoft API is opt-in and every exposed route has its exact delegate
   expect(issuer).toContain('https://login.microsoftonline.com/');
   expect(issuer).toContain('/v2.0');
   const parameters = JSON.stringify(enabled.toJSON().Parameters);
-  for (const name of ['/files/api-tenant-id', '/files/api-audience', '/files/api-client-id']) expect(parameters).toContain(name);
+  for (const name of ['/dliu/entra-tenant-id', '/dliu/api-app-id']) expect(parameters).toContain(name);
+  expect(parameters).not.toContain('/files/api-tenant-id');
   const routes = require('../lambda/api/routes.json');
   const deployed = Object.values(enabled.findResources('AWS::ApiGatewayV2::Route'));
   expect(deployed.map((route) => route.Properties.RouteKey).sort()).toEqual(Object.keys(routes).sort());
