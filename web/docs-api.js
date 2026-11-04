@@ -1,8 +1,53 @@
 import { el, t } from './common.js';
-import { flow, stats, bars, table } from './diagram.js';
+import { flow, tiers, stats, bars, table } from './diagram.js';
 
-// How a program uses the API, in plain words: get a token -> call Files -> token is checked -> read or change.
-function diagram() {
+// A link to the machine-readable Markdown, shown under the heading and again at the end.
+function machineLink() {
+  return el('p', { class: 'source' },
+    t('面向机器的版本：', 'Machine-readable version: '),
+    el('a', { href: '/docs/api.md' }, '/docs/api.md'));
+}
+
+// The parts a managed-API call touches, in the same tiers style as the Architecture tab, using the same
+// service colours and icons: the caller -> Microsoft sign-in and the gateway -> the backend checks -> files.
+function components() {
+  return tiers({
+    title: t('一次 API 调用涉及的组成部分', 'What an API call touches'),
+    rows: [
+      {
+        label: t('调用者', 'Caller'), badge: t('令牌', 'Token'), tone: 'untrusted',
+        nodes: [
+          { icon: 'bot', title: t('工具和 AI 助手', 'Tools and AI agents'), text: t('其他 dliu.com 网站、脚本、代理', 'Other dliu.com sites, scripts, agents') },
+        ],
+      },
+      {
+        label: t('登录', 'Sign-in'), badge: 'Microsoft', tone: 'edge', link: t('带令牌的 HTTPS', 'HTTPS with a token'),
+        nodes: [
+          { icon: 'entra', title: 'auth.dliu.com', text: t('Microsoft 颁发共享 dliu API 的访问令牌', 'Microsoft issues an access token for the shared dliu API') },
+          { icon: 'link', title: t('API 网关', 'API Gateway'), text: t('校验签名、颁发者、受众和权限', 'Checks the signature, issuer, audience and permission') },
+        ],
+      },
+      {
+        label: t('检查', 'Checks'), badge: t('按需', 'On demand'), tone: 'app', link: t('网关身份，无 Cookie 回退', 'Gateway identity, no cookie fallback'),
+        nodes: [
+          { icon: 'lambda', title: 'Files Lambda', text: t('确认应用、共享角色和每个端点的权限', 'Confirms the app, the shared role and each endpoint’s permission') },
+          { icon: 'shield', title: t('拒绝', 'Refusal'), text: t('角色或权限不符即拒绝', 'Refused unless the role and permission match') },
+        ],
+      },
+      {
+        label: t('文件', 'Files'), badge: t('私有', 'Private'), tone: 'private', link: t('读取或修改', 'Read or change'),
+        nodes: [
+          { icon: 'folder', title: t('文件存储桶', 'File bucket'), text: t('上传、移动、删除，并更新文件清单', 'Upload, move, delete, and update the file list') },
+        ],
+      },
+    ],
+    note: t('没有网站 Cookie 回退：令牌必须来自 auth.dliu.com，且账号已获授权。',
+      'No website-cookie fallback: the token must come from auth.dliu.com and the account must be assigned.'),
+  });
+}
+
+// How a program uses the API, step by step, for people.
+function callFlow() {
   return flow({
     title: t('程序如何使用 API', 'How a program uses the API'),
     steps: [
@@ -11,8 +56,6 @@ function diagram() {
       { icon: 'shield', title: t('检查令牌', 'Token is checked'), text: t('正确的应用、角色和权限', 'right app, role and permission') },
       { icon: 's3', title: t('列出或修改文件', 'List or change files'), tone: 'good' },
     ],
-    note: t('没有网站 Cookie 回退：令牌必须来自 auth.dliu.com，且账号已获授权。',
-      'No website-cookie fallback: the token must come from auth.dliu.com and the account must be assigned.'),
   });
 }
 
@@ -77,8 +120,10 @@ function paths() {
 // High-level only (which endpoints exist and what each is for): the Markdown file carries the exact formats.
 export function api(root) {
   root.append(
-    diagram(),
+    machineLink(),
+    components(),
     numbers(),
+    callFlow(),
     el('h2', {}, t('能做什么', 'What you can do')),
     endpointsTable(),
     el('h2', {}, t('端点类别', 'Endpoints by kind')),

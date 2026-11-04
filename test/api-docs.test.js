@@ -45,6 +45,7 @@ const node = (...parts) => {
 };
 const diagramStubs = {
   flow: ({ title, steps = [], note }) => node(title, steps.map((s) => [s.title, s.text]), note),
+  tiers: ({ title, rows = [], note }) => node(title, rows.map((r) => [r.label, r.badge, r.link, (r.nodes || []).map((n) => [n.title, n.text])]), note),
   stats: (items) => node(items.map((i) => [i[0], i[1]])),
   bars: ({ title, items = [], note }) => node(title, items.map((i) => [i[0], String(i[1])]), note),
   table: (headers, rows) => node(headers, rows),
@@ -166,11 +167,11 @@ test('the API tab is high-level only: no exact formats, no code or detail blocks
   // No exact technical formats leak into the human tab.
   expect(text).not.toMatch(/\b(200|301|302|401|403|404|503)\b/);
   expect(text).not.toMatch(/application\/|Authorization|Bearer|x-amz-|execute-api|\bGET\b|\bPOST\b|\{|\}/);
-  // No code or details elements, and the only link is the Markdown reference.
+  // No code or details elements, and every link is the Markdown reference (shown at the top and the end).
   expect(nodes.some((n) => ['code', 'pre', 'details'].includes(n.tag))).toBe(false);
   const links = nodes.filter((n) => n.tag === 'a');
-  expect(links).toHaveLength(1);
-  expect(links[0].attributes.href).toBe('/docs/api.md');
+  expect(links).toHaveLength(2);
+  for (const link of links) expect(link.attributes.href).toBe('/docs/api.md');
   for (const link of links) expect(link.attributes.href).not.toMatch(/^https?:/);
 });
 
@@ -179,7 +180,7 @@ test('the full machine-readable reference lives in the Markdown file, not the hu
   expect(markdown).toMatch(/^### (GET|POST) \/api\//m);
   // The human renderer never fetches or inlines that Markdown.
   const source = read('web/docs-api.js');
-  expect(source).not.toMatch(/fetch|renderApiMarkdown|loadApiDocs|docs\/api\.md['"]\)/);
+  expect(source).not.toMatch(/fetch\(|renderApiMarkdown|loadApiDocs/);
 });
 
 test('Files examples are valid Bash and preserve the separate direct-to-S3 upload contract', () => {

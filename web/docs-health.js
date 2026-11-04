@@ -1,22 +1,71 @@
 import { el, t } from './common.js';
-import { flow, stats, bars, table, callout } from './diagram.js';
+import { flow, tiers, stats, bars, table, callout } from './diagram.js';
 
 // Function keys, kept in sync with /docs/health.md and the /health endpoint (test/health.test.js guards this).
 export const GUEST_FUNCTIONS = ['pages', 'shared-ui', 'listing', 'signin', 'api', 'health'];
 export const HEALTH_FUNCTIONS = ['storage', 'signin'];
 
-// How the site is tested, for people: status.dliu.com as a guest -> public pages -> self-check -> result.
-function diagram() {
+// A link to the machine-readable Markdown, shown under the heading and again at the end.
+function machineLink() {
+  return el('p', { class: 'source' },
+    t('面向机器的版本：', 'Machine-readable version: '),
+    el('a', { href: '/docs/health.md' }, '/docs/health.md'));
+}
+
+// The components involved in a test, in the same tiers style as the Architecture tab, using the same
+// service colours and icons. status.dliu.com (guest) -> the public edge -> the backend -> private storage.
+function components() {
+  return tiers({
+    title: t('测试涉及的组成部分', 'What a test touches'),
+    rows: [
+      {
+        label: t('测试者', 'Testers'), badge: t('访客', 'Guest'), tone: 'untrusted',
+        nodes: [
+          { icon: 'bot', title: 'status.dliu.com', text: t('匿名访客，爱尔兰、弗吉尼亚、东京每 15 分钟，中国每小时', 'Anonymous guest; Ireland, Virginia, Tokyo every 15 min, China hourly') },
+        ],
+      },
+      {
+        label: t('测试的页面和端点', 'Pages and endpoints tested'), badge: t('边缘', 'Edge'), tone: 'edge',
+        link: t('HTTPS，无需登录', 'HTTPS, no sign-in'),
+        nodes: [
+          { icon: 'cloudfront', title: 'CloudFront', text: t('分发页面、文件清单和共享外观', 'Serves the pages, the file list and the shared look') },
+          { icon: 'page', title: t('公开页面', 'Public pages'), text: t('首页、文件夹页、/docs', 'Home, folder pages, /docs') },
+          { icon: 'code', title: t('文件清单和共享外观', 'File list and shared UI'), text: t('每个 dliu.com 网站都会加载的列表和样式', 'The list and the look every dliu.com site loads') },
+        ],
+      },
+      {
+        label: t('/health 和后端', '/health and the backend'), badge: t('按需', 'On demand'), tone: 'app',
+        link: t('只读检查', 'Read-only checks'),
+        nodes: [
+          { icon: 'lambda', title: t('/health 自检', '/health self-check'), text: t('本站报告存储和登录配置是否正常', 'The site reports whether storage and sign-in config are healthy') },
+          { icon: 'entra', title: t('登录', 'Sign-in'), text: t('“登录”把主人带到 Microsoft', 'The sign-in link sends the owner to Microsoft') },
+          { icon: 'shield', title: t('API 拒绝', 'API refusal'), text: t('未登录的调用被拒绝', 'Calls without sign-in are refused') },
+        ],
+      },
+      {
+        label: t('它读取的存储', 'Storage it reads'), badge: t('私有', 'Private'), tone: 'private',
+        link: t('/health 每个依赖一次廉价读取', '/health reads each once, cheaply'),
+        nodes: [
+          { icon: 'folder', title: t('文件存储桶', 'File bucket'), text: t('文件、网站和文件清单', 'The files, the site and the file list') },
+          { icon: 'ssm', title: 'Parameter Store', text: t('登录配置', 'Sign-in configuration') },
+        ],
+      },
+    ],
+    note: t('status.dliu.com 从不登录，也没有本站的 AWS 权限；它只请求任何人都能访问的页面。',
+      'status.dliu.com never signs in and has no AWS access to this site; it only requests pages anyone can reach.'),
+  });
+}
+
+// How a test run goes, step by step, for people.
+function runFlow() {
   return flow({
-    title: t('status.dliu.com 如何测试本站', 'How status.dliu.com tests this site'),
+    title: t('一次测试的过程', 'How a test run goes'),
     steps: [
       { icon: 'bot', title: t('status.dliu.com', 'status.dliu.com'), text: t('匿名访客，每 15 分钟一次', 'Anonymous guest, every 15 minutes') },
       { icon: 'page', title: t('公开页面和功能', 'Public pages and functions'), text: t('只看，不登录', 'Looks only, never signs in') },
       { icon: 'shield', title: t('自检', 'Self-check'), text: t('本站检查自己的存储和登录配置', 'the site checks its own storage and sign-in config') },
       { icon: 'check', title: t('通过 / 警告 / 失败', 'pass / warn / fail'), tone: 'good' },
     ],
-    note: t('status.dliu.com 从不登录，也没有本站的 AWS 权限；它只请求任何人都能访问的页面。',
-      'status.dliu.com never signs in and has no AWS access to this site; it only requests pages anyone can reach.'),
   });
 }
 
@@ -88,8 +137,10 @@ function notTested() {
 // No exact technical details (status codes, headers, JSON, code or <details>): the Markdown file carries those.
 export function health(root) {
   root.append(
-    diagram(),
+    machineLink(),
+    components(),
     numbers(),
+    runFlow(),
     legend(),
     el('h2', {}, t('检查的功能', 'Functions that are checked')),
     functionsTable(),
