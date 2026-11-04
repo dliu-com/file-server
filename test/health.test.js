@@ -97,9 +97,12 @@ describe('the Health tab is human-readable (HEALTH.md §1)', () => {
     // No exact technical details (status codes, content types, braces).
     expect(text).not.toMatch(/\b(200|301|302|401|403|404|503)\b/);
     expect(text).not.toMatch(/application\/|Authorization|Bearer|x-amz-|\{|\}/);
-    // The only links are the machine-readable reference, shown at the top and again at the end.
+    // The Markdown reference is linked at the top and again at the end; the live status page is linked once.
     const links = nodes.filter((n) => n.tag === 'a');
-    expect(links).toHaveLength(2);
-    for (const link of links) expect(link.attributes.href).toBe('/docs/health.md');
+    const md = links.filter((l) => l.attributes.href === '/docs/health.md');
+    const status = links.filter((l) => l.attributes.href === 'https://status.dliu.com/site/files');
+    expect(md).toHaveLength(2);
+    expect(status).toHaveLength(1);
+    expect(links).toHaveLength(3);
   });
 });

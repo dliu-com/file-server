@@ -12,6 +12,13 @@ function machineLink() {
     el('a', { href: '/docs/health.md' }, '/docs/health.md'));
 }
 
+// A link to this site's live status page on status.dliu.com, shown near the top.
+function statusLink() {
+  return el('p', { class: 'source' },
+    t('实时状态：', 'Live status: '),
+    el('a', { href: 'https://status.dliu.com/site/files' }, 'status.dliu.com/site/files'));
+}
+
 // The components involved in a test, in the same tiers style as the Architecture tab, using the same
 // service colours and icons. status.dliu.com (guest) -> the public edge -> the backend -> private storage.
 function components() {
@@ -138,6 +145,7 @@ function notTested() {
 export function health(root) {
   root.append(
     machineLink(),
+    statusLink(),
     components(),
     numbers(),
     runFlow(),
