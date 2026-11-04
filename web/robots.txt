@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://files.dliu.com/sitemap.xml

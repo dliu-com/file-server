@@ -3,7 +3,13 @@
 // from the address bar. /docs is the docs page (architecture, cost, security, testing, API). /docs/api.md and
 // /docs/health.md are the machine-readable API and testing references. The old /docs/api and /docs/health pages
 // are now the API and Health tabs, so they 301-redirect to /docs#api and /docs#health. Everything else is a file.
-var PAGES = { '/docs': '/_app/docs.html', '/docs/api.md': '/_app/docs/api.md', '/docs/health.md': '/_app/docs/health.md' };
+var PAGES = {
+  '/docs': '/_app/docs.html',
+  '/docs/api.md': '/_app/docs/api.md',
+  '/docs/health.md': '/_app/docs/health.md',
+  '/robots.txt': '/_app/robots.txt',
+  '/sitemap.xml': '/_app/sitemap.xml',
+};
 var REDIRECTS = { '/docs/api': '/docs#api', '/docs/health': '/docs#health' };
 
 function handler(event) {
