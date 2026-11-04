@@ -33,15 +33,15 @@ test('every visitor gets a Docs item that opens the docs page, before Sign in', 
   expect(items[1].href).toBe('/auth/login?return=%2Fphotos%2F');
 });
 
-test('the owner gets Docs then Sign out, and Docs is marked current on both docs pages', () => {
+test('the owner gets Docs then Sign out, and Docs is marked current on the docs page', () => {
   expect(render('/', 'files_owner=1').map((item) => [item.text, item.href])).toEqual([['Docs', '/docs'], ['Sign out', '/auth/logout']]);
   expect(render('/docs')[0]['aria-current']).toBe('page');
-  expect(render('/docs/api')[0]['aria-current']).toBe('page');
+  expect(render('/docs/api')[0]['aria-current']).toBeUndefined();
   expect(render('/docs/')[0]['aria-current']).toBeUndefined();
 });
 
 test('every page shell have the header nav that renderNav fills', () => {
-  for (const file of ['web/index.html', 'web/docs.html', 'web/docs-api.html']) {
+  for (const file of ['web/index.html', 'web/docs.html']) {
     expect(fs.readFileSync(path.join(__dirname, '..', file), 'utf8')).toContain('<nav class="dl-nav" aria-label="Site" data-zh-label="网站"></nav>');
   }
 });

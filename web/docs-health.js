@@ -1,50 +1,77 @@
 import { el, t } from './common.js';
-import { flow, table, more, callout } from './diagram.js';
-
-const SITE = 'https://files.dliu.com';
-const mono = (text) => ({ text, className: 'mono' });
+import { flow, stats, bars, table, callout } from './diagram.js';
 
 // Function keys, kept in sync with /docs/health.md and the /health endpoint (test/health.test.js guards this).
 export const GUEST_FUNCTIONS = ['pages', 'shared-ui', 'listing', 'signin', 'api', 'health'];
 export const HEALTH_FUNCTIONS = ['storage', 'signin'];
 
-// How the site is tested, for people: status.dliu.com as a guest -> public URLs -> /health -> dependencies -> result.
+// How the site is tested, for people: status.dliu.com as a guest -> public pages -> self-check -> result.
 function diagram() {
   return flow({
     title: t('status.dliu.com 如何测试本站', 'How status.dliu.com tests this site'),
     steps: [
       { icon: 'bot', title: t('status.dliu.com', 'status.dliu.com'), text: t('匿名访客，每 15 分钟一次', 'Anonymous guest, every 15 minutes') },
-      { icon: 'page', title: t('公开页面和网址', 'Public pages and URLs'), text: t('GET/HEAD，无需登录', 'GET/HEAD, no sign-in') },
-      { icon: 'shield', title: '/health', text: t('每个依赖做一次廉价读取', 'One cheap read per dependency') },
-      { icon: 's3', title: t('S3 与 Entra', 'S3 and Entra'), text: t('文件存储与登录配置', 'File storage and sign-in config') },
+      { icon: 'page', title: t('公开页面和功能', 'Public pages and functions'), text: t('只看，不登录', 'Looks only, never signs in') },
+      { icon: 'shield', title: t('自检', 'Self-check'), text: t('本站检查自己的存储和登录配置', 'the site checks its own storage and sign-in config') },
       { icon: 'check', title: t('通过 / 警告 / 失败', 'pass / warn / fail'), tone: 'good' },
     ],
-    note: t('status.dliu.com 从不登录，也没有本站的 AWS 权限；它只请求任何人都能访问的网址。',
-      'status.dliu.com never signs in and has no AWS access to this site; it only requests URLs anyone can reach.'),
+    note: t('status.dliu.com 从不登录，也没有本站的 AWS 权限；它只请求任何人都能访问的页面。',
+      'status.dliu.com never signs in and has no AWS access to this site; it only requests pages anyone can reach.'),
   });
 }
 
 function legend() {
-  const row = el('div', { class: 'dg-legend' },
+  return el('div', { class: 'dg-legend' },
     callout('check', t('通过：功能正常。', 'pass: the function works.')),
     callout('clock', t('警告：可用但偏慢或降级。', 'warn: usable but slow or degraded.')),
     callout('shield', t('失败：功能不可用。', 'fail: the function is down.')));
-  return row;
 }
 
-// One plain-language line per function: what is checked and what "down" means for a visitor.
-function functionsList() {
+// Big numbers: how much is tested and how often.
+function numbers() {
+  return stats([
+    [t('6 项功能', '6 functions'), t('每次运行都检查', 'checked on every run'), 'eye'],
+    [t('7 项检查', '7 checks'), t('公开页面，只读', 'public pages, read only'), 'check'],
+    [t('每 15 分钟', 'Every 15 min'), t('全天候', 'around the clock'), 'clock'],
+    [t('0 次登录', '0 sign-ins'), t('全部以访客身份', 'all done as a guest'), 'users'],
+  ]);
+}
+
+// One plain-language row per function: what it does, how it's tested, and what a visitor notices if it breaks.
+function functionsTable() {
   const rows = [
-    [t('页面', 'Pages'), t('文件浏览器和文档页能否打开。若宕机，访客看不到任何文件。', 'Whether the file browser and docs pages load. If down, visitors see no files.')],
-    [t('共享外观', 'Shared UI'), t('每个 dliu.com 网站都会加载的共享样式和图标（在 /dliu.com/ 下）能否获取。若宕机，各站外观会损坏。', 'Whether the shared stylesheet and icon under /dliu.com/, which every dliu.com site loads, are served. If down, those sites look broken.')],
-    [t('文件清单', 'File list'), t('公开的文件清单能否读取。若宕机，浏览器显示为空。', 'Whether the public file list can be read. If down, the browser shows nothing.')],
-    [t('登录', 'Sign-in'), t('“登录”能否把人带到 Microsoft。若宕机，主人无法登录。', 'Whether "Sign in" sends people to Microsoft. If down, the owner cannot sign in.')],
-    [t('API', 'API'), t('托管 API 是否拒绝匿名请求（返回 401）。若放行，说明保护失效。', 'Whether the managed API refuses anonymous requests (401). If it lets them in, protection has failed.')],
-    [t('健康检查', 'Health check'), t('/health 端点是否报告各依赖（存储、登录配置）为通过。', 'Whether the /health endpoint reports each dependency (storage, sign-in config) as passing.')],
+    [t('页面', 'Pages'), t('显示文件浏览器和文档页', 'Shows the file browser and docs pages'),
+      t('以访客身份打开网站，确认能加载', 'Open the site as a guest and check it loads'), t('访客看不到任何文件', 'Visitors see no files')],
+    [t('共享外观', 'Shared UI'), t('提供每个 dliu.com 网站都会加载的样式和图标', 'Serves the look and icon every dliu.com site loads'),
+      t('获取共享样式表和图标', 'Fetch the shared stylesheet and icon'), t('其他网站外观损坏', 'Other sites look broken')],
+    [t('文件清单', 'File list'), t('公开的文件列表', 'The public list of files'),
+      t('读取公开的文件清单', 'Read the public file list'), t('浏览器显示为空', 'The browser shows nothing')],
+    [t('登录', 'Sign-in'), t('把主人带到 Microsoft 登录', 'Sends the owner to Microsoft to sign in'),
+      t('跟随“登录”链接', 'Follow the sign-in link'), t('主人无法登录', 'The owner cannot sign in')],
+    [t('API', 'API'), t('拒绝未登录的调用者', 'Refuses callers who are not signed in'),
+      t('不登录就调用托管 API，应被拒绝', 'Call the managed API without signing in; expect a refusal'), t('保护已失效', 'Protection has failed')],
+    [t('健康检查', 'Health check'), t('本站对存储和登录配置的自检', 'The site’s self-check of its storage and sign-in config'),
+      t('读取健康检查页', 'Read the health page'), t('无法判断存储或登录是否正常', 'We cannot tell if storage or sign-in is healthy')],
   ];
-  const ul = el('ul');
-  for (const [name, line] of rows) ul.append(el('li', {}, el('strong', {}, name + ': '), line));
-  return ul;
+  return table(
+    [t('功能', 'Function'), t('作用', 'What it does'), t('如何检查', 'How it is checked'), t('若损坏', 'If it broke')],
+    rows,
+  );
+}
+
+// A simple chart: how many checks each function has (7 in total).
+function checksChart() {
+  return bars({
+    items: [
+      [t('页面', 'Pages'), 1, 'good'],
+      [t('共享外观', 'Shared UI'), 2, 'good'],
+      [t('文件清单', 'File list'), 1, 'good'],
+      [t('登录', 'Sign-in'), 1, 'good'],
+      ['API', 1, 'good'],
+      [t('健康检查', 'Health'), 1, 'good'],
+    ],
+    note: t('共 7 项检查，全部是公开、只读的请求。', '7 checks in total, all public, read-only requests.'),
+  });
 }
 
 function notTested() {
@@ -57,63 +84,20 @@ function notTested() {
   return ul;
 }
 
-// Every technical detail folded in closed <details> blocks.
-function guestChecksDetails() {
-  const rows = [
-    ['pages', 'GET', mono(SITE + '/'), '200', 'text/html', t('含 dl-header', 'contains dl-header')],
-    ['shared-ui', 'GET', mono(SITE + '/dliu.com/ui/v1/dl.css'), '200', 'text/css', t('含 --dl-', 'contains --dl-')],
-    ['shared-ui', 'GET', mono(SITE + '/dliu.com/favicon.png'), '200', 'image/png', '—'],
-    ['listing', 'GET', mono(SITE + '/_data/files.json'), '200', 'application/json', t('JSON 键 files', 'JSON key files')],
-    ['signin', 'GET', mono(SITE + '/auth/login'), '302', '—', t('Location 以 https://login.microsoftonline.com/ 开头', 'Location starts with https://login.microsoftonline.com/')],
-    ['api', 'GET', mono(SITE + '/api/files'), '401', 'application/json', t('JSON 键 error', 'JSON key error')],
-    ['health', 'GET', mono(SITE + '/health'), '200/503', 'application/health+json', t('JSON 键 status', 'JSON key status')],
-  ];
-  return more(t('访客检查（网址、状态码、标记）', 'Guest checks (URLs, status codes, markers)'),
-    table(
-      [t('功能', 'Function'), t('方法', 'Method'), t('网址', 'URL'), t('预期状态', 'Expected status'), t('内容类型', 'Content type'), t('标记 / 跳转', 'Marker / redirect')],
-      rows,
-    ),
-    el('p', { class: 'dg-note' }, t('只用 GET 和 HEAD，不带 Cookie 或 Authorization 头，只读。',
-      'GET and HEAD only, with no cookies or Authorization header, read only.')));
-}
-
-function healthEndpointDetails() {
-  const example = `{
-  "status": "pass",
-  "time": "2026-11-03T23:00:00Z",
-  "functions": [
-    { "key": "storage", "name": "File storage", "status": "pass" },
-    { "key": "signin", "name": "Microsoft sign-in", "status": "pass" }
-  ]
-}`;
-  return more(t('/health 端点', 'The /health endpoint'),
-    el('ul', {},
-      el('li', {}, el('code', {}, 'GET ' + SITE + '/health'), ' — ',
-        t('无需认证；CloudFront 不转发 Cookie、Authorization 头或查询串，处理函数也不读取。',
-          'No authentication; CloudFront forwards no cookies, Authorization header or query string, and the handler reads none.')),
-      el('li', {}, t('只读：每个依赖一次廉价读取（S3 HeadObject，SSM 参数读取），不做 S3 LIST，不调用付费第三方，5 秒内返回。',
-        'Read only: one cheap read per dependency (S3 HeadObject, an SSM parameter read), no S3 LIST, no paid third-party calls, returns within 5 s.')),
-      el('li', {}, t('在 CloudFront 缓存 60 秒，所以每分钟最多运行约一次。', 'Cached 60 s at CloudFront, so it runs at most about once a minute.')),
-      el('li', {}, el('code', {}, 'Content-Type: application/health+json'), '; ',
-        t('status 为 pass 或 warn 时返回 200，为 fail 时返回 503。', '200 when status is pass or warn, 503 when fail.')),
-      el('li', {}, t('报告的功能键：', 'Function keys reported: '), el('code', {}, HEALTH_FUNCTIONS.join(', ')), '。',
-        t('不泄露任何私有细节（无表名、桶名、计数或堆栈）。', ' No private details (no table, bucket, counts or stack traces).'))),
-    el('pre', { class: 'code' }, example));
-}
-
 // The Testing tab's body. The heading and lead come from docs.html; this appends the rest to the article.
+// No exact technical details (status codes, headers, JSON, code or <details>): the Markdown file carries those.
 export function health(root) {
   root.append(
     diagram(),
+    numbers(),
     legend(),
     el('h2', {}, t('检查的功能', 'Functions that are checked')),
-    functionsList(),
+    functionsTable(),
+    el('h2', {}, t('每项功能的检查数', 'Checks per function')),
+    checksChart(),
     el('h2', {}, t('不测试的内容', 'What is not tested')),
     notTested(),
-    el('h2', {}, t('技术细节', 'Technical details')),
-    guestChecksDetails(),
-    healthEndpointDetails(),
     el('p', { class: 'source' },
-      el('a', { href: '/docs/health.md' }, t('完整技术版本（Markdown）', 'Full technical version (Markdown)'))),
+      el('a', { href: '/docs/health.md' }, t('面向机器的技术版本（Markdown）', 'Technical version for machines (Markdown)'))),
   );
 }

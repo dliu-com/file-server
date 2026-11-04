@@ -18,7 +18,6 @@ describe('pages CloudFront function', () => {
     ['/_app/app.js', '/_app/app.js'],
     ['/me/index.html', '/me/index.html'],
     ['/docs', '/_app/docs.html'],
-    ['/docs/api', '/_app/docs-api.html'],
     ['/docs/api.md', '/_app/docs/api.md'],
     ['/docs/health.md', '/_app/docs/health.md'],
     ['/docs/', '/_app/index.html'],
@@ -33,9 +32,15 @@ describe('pages CloudFront function', () => {
     expect(uriFor(input)).toBe(expected);
   });
 
-  test('/docs/health 301-redirects to the Testing tab', () => {
+  test('/docs/health 301-redirects to the Health tab', () => {
     const result = handler({ request: { uri: '/docs/health' } });
     expect(result.statusCode).toBe(301);
     expect(result.headers.location.value).toBe('/docs#health');
+  });
+
+  test('/docs/api 301-redirects to the API tab', () => {
+    const result = handler({ request: { uri: '/docs/api' } });
+    expect(result.statusCode).toBe(301);
+    expect(result.headers.location.value).toBe('/docs#api');
   });
 });

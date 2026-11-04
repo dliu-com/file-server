@@ -6,6 +6,7 @@
   <title>Docs · Files · dliu.com</title>
   <meta name="description" content="How files.dliu.com works: architecture, running costs and security">
   <link rel="icon" type="image/svg+xml" href="/_app/logo.svg">
+  <link rel="alternate" type="text/markdown" href="/docs/api.md" title="Files API reference (Markdown)">
   <link rel="alternate" type="text/markdown" href="/docs/health.md" title="Files testing instructions (Markdown)">
   <link rel="stylesheet" href="https://files.dliu.com/dliu.com/ui/v1/dl.css">
   <link rel="stylesheet" href="https://files.dliu.com/dliu.com/ui/v1/dl-docs.css">
@@ -20,11 +21,11 @@
   </header>
   <main class="dl-main dl-docs-main">
     <nav class="dl-tabs" aria-label="Docs sections" data-zh-label="文档章节">
-      <a href="#architecture" data-tab="architecture" data-zh="技术架构">Technical architecture</a>
+      <a href="#architecture" data-tab="architecture" data-zh="架构">Architecture</a>
       <a href="#cost" data-tab="cost" data-zh="运行成本">Cost</a>
       <a href="#security" data-tab="security" data-zh="安全">Security</a>
-      <a href="#health" data-tab="health" data-zh="测试">Testing</a>
-      <a href="/docs/api">API</a>
+      <a href="#health" data-tab="health" data-zh="健康">Health</a>
+      <a href="#api" data-tab="api">API</a>
     </nav>
     <article id="architecture" class="dl-docs">
       <h2 data-zh="工作原理">How it works</h2>
@@ -43,6 +44,11 @@
       <h2 data-zh="如何测试本站">How this site is tested</h2>
       <p class="lead" data-zh="status.dliu.com 以匿名访客的身份每 15 分钟检查一次 files.dliu.com：它只请求公开网址，从不登录。本节说明它检查什么，以及某项“宕机”对访客意味着什么。完整技术版本见 /docs/health.md。">status.dliu.com checks files.dliu.com every 15 minutes as an anonymous guest: it only requests public URLs and never signs in. This section explains what it checks and what “down” means for a visitor. The full technical version is at /docs/health.md.</p>
       <noscript><p>The diagrams on this page need JavaScript. Read the <a href="/docs/health.md">Markdown testing instructions</a> instead. 本页图表需要 JavaScript。</p></noscript>
+    </article>
+    <article id="api" class="dl-docs" hidden>
+      <h2 data-zh="API">API</h2>
+      <p class="lead" data-zh="其他 dliu.com 网站、工具和 AI 代理可以通过托管 API 列出和修改文件。它使用 auth.dliu.com 的 Microsoft 令牌，而不是网站登录。本节用图示和表格说明它能做什么；面向机器的完整参考见 /docs/api.md。">Other dliu.com sites, tools and AI agents can list and change files through the managed API. It uses Microsoft tokens from auth.dliu.com, not the website sign-in. This section shows what it can do with diagrams and tables; the full machine-readable reference is at /docs/api.md.</p>
+      <noscript><p>The diagrams on this page need JavaScript. Read the <a href="/docs/api.md">Markdown API reference</a> instead. 本页图表需要 JavaScript。</p></noscript>
     </article>
   </main>
   <footer class="dl-footer"><a class="dl-footer-logo" href="https://dliu.com" aria-label="dliu.com"><img src="https://files.dliu.com/dliu.com/favicon.png" alt="" width="24" height="24"></a> <a href="https://dliu.com">dliu.com</a> · <a href="/docs" data-zh="文档">Docs</a></footer>

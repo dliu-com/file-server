@@ -1,13 +1,15 @@
 import { renderNav, t, onLanguageChange } from './common.js';
 import { flow, tiers, stats, table, callout, more } from './diagram.js';
 import { health } from './docs-health.js';
+import { api } from './docs-api.js';
 
-const TABS = ['architecture', 'cost', 'security', 'health'];
+const TABS = ['architecture', 'cost', 'security', 'health', 'api'];
 const TITLES = {
-  architecture: () => t('技术架构', 'Technical architecture'),
+  architecture: () => t('架构', 'Architecture'),
   cost: () => t('运行成本', 'Cost'),
   security: () => t('安全', 'Security'),
-  health: () => t('测试', 'Testing'),
+  health: () => t('健康', 'Health'),
+  api: () => t('API', 'API'),
 };
 const num = (text) => ({ text, className: 'num' });
 const mono = (text) => ({ text, className: 'mono' });
@@ -75,7 +77,7 @@ function architecture(root) {
         label: 'CloudFront', badge: t('边缘', 'Edge'), tone: 'edge', link: t('HTTPS，files.dliu.com', 'HTTPS, files.dliu.com'),
         nodes: [
           { icon: 'cloudfront', title: t('分发', 'Distribution'), text: t('TLS 1.2+、HTTP/2 和 HTTP/3、所有边缘节点、安全响应头，在边缘保留文件一天', 'TLS 1.2+, HTTP/2 and HTTP/3, all edge locations, security headers, keeps files at the edge for a day') },
-          { icon: 'page', title: t('页面函数', 'Pages function'), text: t('以 / 结尾的文件夹网址显示文件浏览器；/docs 和 /docs/api 就是这些页面', 'Folder URLs ending in / show the file browser; /docs and /docs/api are these pages') },
+          { icon: 'page', title: t('页面函数', 'Pages function'), text: t('以 / 结尾的文件夹网址显示文件浏览器；/docs 就是本页', 'Folder URLs ending in / show the file browser; /docs is this page') },
           { icon: 'cookie', title: t('访客 ID 函数', 'Visitor ID function'), text: t('与流量监控共享，用于统计访问量', 'Shared with the traffic monitor for visit counts') },
         ],
       },
@@ -135,7 +137,7 @@ function architecture(root) {
     [mono('/_app/*'), t('网站的页面、脚本和样式', 'The site’s pages, scripts and styles'), t('每次加载都检查', 'Checked on every load')],
     [mono('/_data/files.json'), t('文件清单', 'The file list'), t('每次加载都检查', 'Checked on every load')],
     [mono('/dliu.com/*'), t('所有 dliu.com 网站的共享外观（经托管 API 发布）', 'The shared look for all dliu.com sites (published through the managed API)'), t('当作文件', 'As a file')],
-    [mono('/docs /docs/api'), t('这些文档页面', 'These docs pages'), t('每次加载都检查', 'Checked on every load')],
+    [mono('/docs'), t('本文档页面', 'This docs page'), t('每次加载都检查', 'Checked on every load')],
     [mono('/api/* /auth/*'), t('经函数 URL 的 Lambda', 'The Lambda, through its function URL'), t('从不缓存', 'Never cached')],
   ]));
   add('p', t('顶层名称 _app、_data、api 和 auth，文件 index.html，以及确切路径 docs、docs/api 和 docs/api.md 属于网站，所以文件不能上传到那里。名为 docs/ 的文件夹没问题。顶层 dliu.com 存放每个 dliu.com 网站都加载的共享文件：对文件网站只读（登录的网站会话不能上传、替换、移动或删除），只能通过托管 API（auth.dliu.com 令牌）更改，这样共享清单才能保持准确。', 'The top-level names _app, _data, api and auth, the file index.html and the exact paths docs, docs/api and docs/api.md belong to the site, so files cannot be uploaded there. A folder called docs/ is fine. The top-level dliu.com holds the files every dliu.com site loads: it is read-only to the Files website (signed-in website sessions cannot upload, replace, move or delete it) and can only be changed through the managed API (an auth.dliu.com token), which keeps the shared listing accurate.'), 'dg-note');
@@ -167,7 +169,7 @@ function architecture(root) {
     [mono('files.delete'), t('删除文件和文件夹', 'Delete files and folders')],
   ]));
   add('p', t('API Gateway 校验令牌的签名、颁发者、受众、有效期和路由所需的权限。Lambda 还要求是经批准的客户端，以及共享 dliu API 用户角色（api.access），只有被分配的用户才有。files.write 不包含删除。', 'API Gateway checks the token’s signature, issuer, audience, expiry and the route’s permission. The Lambda also requires the approved client and the shared dliu API user role (api.access), which only assigned users have. files.write does not include delete.'));
-  linkParagraph(root, t('路由、请求体和上传流程见 ', 'Routes, request bodies and the upload workflow are in the '), '/docs/api', t('API 参考', 'API reference'), t('。', '.'));
+  linkParagraph(root, t('路由、请求体和上传流程见 ', 'Routes, request bodies and the upload workflow are in the '), '/docs#api', t('API 参考', 'API reference'), t('。', '.'));
 
   root.append(more(t('构建、部署和测试', 'Build, deploy and test'),
     list([
@@ -406,7 +408,7 @@ function security(root) {
 }
 
 // Each article starts with its heading and lead from docs.html (translated by i18n.js); the rest is drawn here.
-const PAGES = { architecture, cost, security, health };
+const PAGES = { architecture, cost, security, health, api };
 const kept = Object.fromEntries(TABS.map((id) => [id, document.getElementById(id).children.length]));
 function draw() {
   renderNav();

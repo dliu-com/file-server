@@ -53,3 +53,14 @@ body.dragging .dl-main { outline: 3px dashed var(--dl-accent); outline-offset: -
 @media (pointer: coarse) {
   .dl-table.files td.actions .dl-button { min-height: 36px; }
 }
+
+/* Docs: simple bar chart (dg-bars), an app-local addition to the shared diagram kit */
+.dg-bars .dg-bar-rows { display: grid; gap: 10px; margin-top: 6px; }
+.dg-bar-row { display: grid; grid-template-columns: minmax(84px, 28%) 1fr auto; align-items: center; gap: 12px; }
+.dg-bar-label { font-size: 13px; }
+.dg-bar-track { height: 14px; background: var(--dl-line); border-radius: 7px; overflow: hidden; }
+.dg-bar-fill { display: block; height: 100%; border-radius: 7px; background: var(--dl-accent); }
+.dg-bar-value { font-size: 13px; color: var(--dl-muted); min-width: 1.5em; text-align: right; }
+.dg-bar-row.dg-good .dg-bar-fill { background: var(--dg-private-line); }
+.dg-bar-row.dg-warn .dg-bar-fill { background: var(--dg-warn-line); }
+.dg-bar-row.dg-bad .dg-bar-fill { background: var(--dg-untrusted-line); }

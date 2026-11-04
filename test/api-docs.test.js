@@ -31,9 +31,29 @@ const el = (tag, attrs = {}, ...children) => {
 };
 const walk = (node) => [node, ...node.children.filter((child) => child instanceof Element).flatMap(walk)];
 
+// Stubs for the diagram kit so the human-readable api(root) renderer runs and we can inspect the text it emits.
+const node = (...parts) => {
+  const box = new Element('div');
+  const push = (value) => {
+    if (value == null) return;
+    if (Array.isArray(value)) value.forEach(push);
+    else if (value instanceof Element) box.append(value);
+    else box.append(String(value));
+  };
+  parts.forEach(push);
+  return box;
+};
+const diagramStubs = {
+  flow: ({ title, steps = [], note }) => node(title, steps.map((s) => [s.title, s.text]), note),
+  stats: (items) => node(items.map((i) => [i[0], i[1]])),
+  bars: ({ title, items = [], note }) => node(title, items.map((i) => [i[0], String(i[1])]), note),
+  table: (headers, rows) => node(headers, rows),
+  icon: () => new Element('svg'),
+};
+
 function renderer() {
   const context = {
-    el, renderNav: jest.fn(), t: (zh, en) => en, onLanguageChange: jest.fn(),
+    el, renderNav: jest.fn(), t: (zh, en) => en, onLanguageChange: jest.fn(), ...diagramStubs,
     document: { getElementById: () => null, querySelector: () => null }, fetch: jest.fn(),
   };
   vm.runInNewContext(read('web/docs-api.js').replace(/^import .*;$/gm, '').replace(/^export /gm, ''), context);
@@ -135,45 +155,31 @@ test('documented request examples exercise all eight handlers locally with match
   } finally { process.env = original; }
 });
 
-test('the Markdown reference renders tables, code and endpoint anchors without executing HTML', () => {
-  const { renderApiMarkdown } = renderer();
-  const content = renderApiMarkdown(markdown);
-  const nodes = walk(content);
-  expect(nodes.filter((node) => node.tag === 'h3').map((node) => node.textContent)).toEqual(Object.keys(routes));
-  expect(nodes.filter((node) => node.tag === 'table').length).toBeGreaterThanOrEqual(5);
-  for (const node of nodes.filter((node) => node.tag === 'a' && node.attributes.href.startsWith('#'))) {
-    expect(nodes.some((target) => target.attributes.id === node.attributes.href.slice(1))).toBe(true);
-  }
-  const malicious = renderApiMarkdown('# Reference\n\n<script>alert(1)</script> [bad](javascript:alert) [bad2](//evil.example)\n\n```html\n<img onerror="bad">\n```');
-  expect(walk(malicious).some((node) => ['script', 'img', 'a'].includes(node.tag))).toBe(false);
-  expect(malicious.textContent).toContain('<script>alert(1)</script>');
-});
-
-test('fetch and document-format failures are surfaced instead of leaving a loading or success placeholder', async () => {
-  const context = renderer();
+test('the API tab is high-level only: no exact formats, no code or detail blocks, and it links to the Markdown reference', () => {
+  const { api } = renderer();
   const root = el('div');
-  context.fetch.mockResolvedValueOnce({ ok: true, text: async () => markdown });
-  await context.loadApiDocs(root);
-  expect(context.fetch).toHaveBeenCalledWith('/docs/api.md');
-  expect(root.textContent).toContain('POST /api/uploads/complete');
-  context.fetch.mockResolvedValueOnce({ ok: false, status: 503 });
-  await context.loadApiDocs(root);
-  expect(root.textContent).toContain('Could not load the API reference: HTTP 503');
-  expect(walk(root).some((node) => node.attributes.role === 'alert')).toBe(true);
-  context.fetch.mockResolvedValueOnce({ ok: true, text: async () => '```json\nunclosed' });
-  await context.loadApiDocs(root);
-  expect(root.textContent).toContain('Unclosed code block');
+  api(root);
+  const nodes = walk(root);
+  const text = root.textContent;
+  // High-level content is present: the permission words and the plain-words sign-in rules.
+  for (const word of ['Read', 'Write', 'Delete', 'auth.dliu.com', 'dliu API user']) expect(text).toContain(word);
+  // No exact technical formats leak into the human tab.
+  expect(text).not.toMatch(/\b(200|301|302|401|403|404|503)\b/);
+  expect(text).not.toMatch(/application\/|Authorization|Bearer|x-amz-|execute-api|\bGET\b|\bPOST\b|\{|\}/);
+  // No code or details elements, and the only link is the Markdown reference.
+  expect(nodes.some((n) => ['code', 'pre', 'details'].includes(n.tag))).toBe(false);
+  const links = nodes.filter((n) => n.tag === 'a');
+  expect(links).toHaveLength(1);
+  expect(links[0].attributes.href).toBe('/docs/api.md');
+  for (const link of links) expect(link.attributes.href).not.toMatch(/^https?:/);
 });
 
-test('the page shell loads only site assets and links the Markdown and Auth references', () => {
-  const shell = read('web/docs-api.html');
-  expect(shell).toContain('<script type="module" src="/_app/docs-api.js"></script>');
-  expect(shell).toContain('<link rel="stylesheet" href="/_app/style.css">');
-  expect(shell).toContain('href="/docs/api.md"');
-  expect(shell).toContain('href="https://auth.dliu.com/docs/api">Auth API documentation</a>');
-  expect(shell).toContain('Authentication is required');
-  expect(shell).toContain('id="api-doc"');
-  expect(shell).not.toMatch(/<script(?![^>]*src="\/_app\/)/);
+test('the full machine-readable reference lives in the Markdown file, not the human tab', () => {
+  // The exact routes, scopes and formats stay in /docs/api.md (asserted in detail by the other tests here).
+  expect(markdown).toMatch(/^### (GET|POST) \/api\//m);
+  // The human renderer never fetches or inlines that Markdown.
+  const source = read('web/docs-api.js');
+  expect(source).not.toMatch(/fetch|renderApiMarkdown|loadApiDocs|docs\/api\.md['"]\)/);
 });
 
 test('Files examples are valid Bash and preserve the separate direct-to-S3 upload contract', () => {
@@ -201,11 +207,8 @@ test('the reference requires canonical Auth setup without duplicating generic cr
   expect(markdown).not.toContain('files.access');
   expect(markdown).toContain('display name "dliu API user"');
   expect(markdown).not.toMatch(/[\w.+-]+@dliu\.com/);
-  const nodes = walk(renderer().renderApiMarkdown(markdown));
-  expect(nodes.some((node) => node.tag === 'a' && node.attributes.href === 'https://auth.dliu.com/docs/api')).toBe(true);
-  for (const source of [markdown, read('web/docs-api.html')]) {
-    expect(source).not.toMatch(/FILES_API_ACCESS_TOKEN|FILES_API_TOKEN_FILE|expires_at=|Authorization:|Bearer |readAccessToken|client_secret/);
-  }
+  expect(markdown).toContain('(https://auth.dliu.com/docs/api)');
+  expect(markdown).not.toMatch(/FILES_API_ACCESS_TOKEN|FILES_API_TOKEN_FILE|expires_at=|Authorization:|Bearer |readAccessToken|client_secret/);
 });
 
 test('the documented Files adapter forwards method/path/JSON unchanged and propagates client failures', () => {

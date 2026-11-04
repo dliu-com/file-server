@@ -182,3 +182,23 @@ export function callout(name, text) {
   box.append(icon(name), el('span', '', text));
   return box;
 }
+
+// A simple horizontal bar chart. Items are [label, value, tone?] with tone 'good' | 'warn' | 'bad'.
+export function bars({ title, items, note }) {
+  const figure = frame(title, 'dg-bars');
+  const max = Math.max(...items.map(([, value]) => value), 1);
+  const chart = el('div', 'dg-bar-rows');
+  chart.setAttribute('role', 'list');
+  for (const [label, value, tone] of items) {
+    const row = el('div', 'dg-bar-row' + (tone ? ' dg-' + tone : ''));
+    row.setAttribute('role', 'listitem');
+    const track = el('span', 'dg-bar-track');
+    const fill = el('span', 'dg-bar-fill');
+    fill.style.width = Math.round((value / max) * 100) + '%';
+    track.append(fill);
+    row.append(el('span', 'dg-bar-label', label), track, el('strong', 'dg-bar-value', String(value)));
+    chart.append(row);
+  }
+  figure.append(chart);
+  return withNote(figure, note);
+}

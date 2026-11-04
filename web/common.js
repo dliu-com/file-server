@@ -119,9 +119,9 @@ export const signInUrl = () => `/auth/login?return=${encodeURIComponent(location
 export function renderNav() {
   const nav = document.querySelector('.dl-header .dl-nav');
   if (!nav) return;
-  // /docs (architecture, cost, security) and /docs/api are the docs pages; /docs/ is an ordinary folder.
+  // /docs (architecture, cost, security, testing, API) is the docs page; /docs/ is an ordinary folder.
   const docs = el('a', { class: 'dl-button', href: '/docs' }, t('文档', 'Docs'));
-  if (location.pathname === '/docs' || location.pathname === '/docs/api') docs.setAttribute('aria-current', 'page');
+  if (location.pathname === '/docs') docs.setAttribute('aria-current', 'page');
   const switcher = i18n() && i18n().switcher;
   nav.replaceChildren(docs, isOwner()
     ? el('a', { class: 'dl-button', href: '/auth/logout' }, t('退出登录', 'Sign out'))
